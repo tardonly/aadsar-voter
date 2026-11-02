@@ -1,38 +1,43 @@
-# Voter search app — how to deploy and update
+# Voter search app — setup, admin and updates
 
-## What gets uploaded
-Upload **only** the `voter-search-app/` folder. It contains no passwords and no readable voter data:
-`data.enc` is the voter list encrypted with a random key, and that key is stored once per password, each copy
-locked by its password. Without one of the passwords, the file is useless.
+Online-only app. The voter list stays on the server (encrypted in `voter-search-app/api/_voters.enc`); phones only
+receive the cards that match a search. Every search checks that the user's password is still active.
 
-Never upload or commit anything from `app-build/` (`PASSWORDS.txt`, `voters.json`) or the PDFs/Excel files.
+## What is in git
+The `.gitignore` lets only `voter-search-app/` and three files from `app-build/` into git. These never go in git:
+`app-build/DATA_KEY.txt` (unlocks the voter data), `app-build/voters.json` (plain voter data), PDFs, Excel files.
 
-## Deploy to Vercel through git (one time)
-The `.gitignore` in the main folder only lets the app folder and the build script into git; PDFs, Excel files,
-`voters.json` and `PASSWORDS.txt` stay out. Check with `git status` before the first commit.
+## One-time Vercel setup
+1. **Import the repo** in Vercel: Add New → Project → pick the repo.
+   Root Directory: `voter-search-app` · Framework Preset: **Other** · Build Command: empty.
+2. **Add a database:** Project → Storage → Create Database → **Upstash for Redis** (free plan) → Connect to the project.
+   This adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+3. **Add two environment variables** (Project → Settings → Environment Variables):
+   - `DATA_KEY` = the text in `app-build/DATA_KEY.txt`
+   - `ADMIN_PASSWORD` = an admin password you choose (long, not shared with anyone)
+4. **Redeploy** (Deployments → ⋯ → Redeploy) so the variables take effect.
 
-1. Push the repo to GitHub (a **private** repository is best).
-2. In Vercel: Add New → Project → import the repo.
-3. Set **Root Directory** to `voter-search-app`, Framework Preset **Other**, leave Build Command empty.
-4. Deploy. You get an `https://….vercel.app` link; every later `git push` redeploys it.
-`vercel.json` in the folder tells search engines not to index the site.
+## Admin
+Open the app, log in with the **admin password** → an **एडमिन** button appears (or open `/admin.html`).
+- **नया व्यक्ति जोड़ें:** type the person's name → you get their password once → Copy or send by WhatsApp.
+- **बंद करें:** that password stops working; the person is logged out on their next search.
+- **नया पासवर्ड:** new password for the same person (e.g. they forgot it); the old one stops working.
+Changing `ADMIN_PASSWORD` in Vercel (and redeploying) signs out every admin session.
 
-No environment variables are needed: the app unlocks on the phone, so it also works with no internet.
+## Phones (Android or iPhone)
+Open the link, enter the password, keep "इस फ़ोन पर याद रखें" ticked. Optional: add to home screen
+(Android ⋮ → Add to Home screen, iPhone Share → Add to Home Screen). Needs internet every time.
 
-## Put it on a phone (Android or iPhone)
-1. Open the link once with internet on (Chrome on Android, Safari on iPhone).
-2. Enter one of the passwords; keep "इस फ़ोन पर याद रखें" ticked.
-3. Android: menu ⋮ → "Add to Home screen" / "Install app". iPhone: Share → "Add to Home Screen".
-4. From now on it opens from the home-screen icon and works without internet.
-
-## Passwords
-`PASSWORDS.txt` has 10 passwords, one per person. To switch one off, delete its line, run the build, redeploy.
-To add one, add a line like `11: some-new-pass`. Phones that already unlocked keep working until the data or
-password list changes; then they are asked for a (still valid) password again.
-
-## Updating the voter data or the app
+## Updating the voter data
 ```
-node app-build/encrypt.mjs        # re-encrypts only if voters.json or PASSWORDS.txt changed
+node app-build/encrypt.mjs        # re-encrypts voters.json with the same DATA_KEY
 git add -A && git commit -m "Update voter data" && git push
 ```
-Installed phones pick up the new version the next time they open the app with internet.
+If you ever create a new `DATA_KEY.txt`, update the `DATA_KEY` variable in Vercel too. Changing the key makes
+all existing user passwords stop working (they are tied to it), so add the people again in admin.
+
+## Testing on this Mac
+```
+ADMIN_PASSWORD=admin-test node app-build/dev-server.mjs     # then open http://127.0.0.1:8765
+```
+It imitates Vercel and the database in memory (everything added there is lost when it stops).
