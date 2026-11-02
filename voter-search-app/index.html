@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#c2185b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="मतदाता खोज">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>मतदाता खोज</title>
+<style>
+  :root {
+    --bg: #f3f4f6; --card: #fff; --ink: #111; --muted: #6b7280; --line: #d1d5db;
+    --pink: #e0245e; --pink-dark: #c2185b; --accent: #1f4e8c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Noto Sans Devanagari", "Kohinoor Devanagari", "Mangal", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  button, input, select { font: inherit; }
+  .hidden { display: none !important; }
+
+  /* lock screen */
+  #lock { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .lockbox { width: 100%; max-width: 380px; background: var(--card); border-radius: 14px; padding: 24px 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.08); text-align: center; }
+  .lockbox img { width: 72px; height: 72px; border-radius: 16px; }
+  .lockbox h1 { font-size: 22px; margin: 12px 0 2px; }
+  .lockbox p { margin: 0 0 18px; color: var(--muted); font-size: 14px; }
+  .lockbox input[type=password], .lockbox input[type=text] { width: 100%; padding: 12px 14px; font-size: 18px;
+    border: 1.5px solid var(--line); border-radius: 10px; text-align: center; letter-spacing: 1px; }
+  .lockbox label { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 12px 0; font-size: 14px; color: var(--muted); }
+  .btn { width: 100%; padding: 12px; font-size: 18px; border: 0; border-radius: 10px; background: var(--pink-dark); color: #fff; font-weight: 600; }
+  .btn:disabled { opacity: .6; }
+  #lockMsg { min-height: 22px; margin-top: 10px; font-size: 14px; color: #b91c1c; }
+
+  /* search screen */
+  header { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line);
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px; }
+  .titlebar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .titlebar b { font-size: 17px; }
+  .titlebar button { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 4px 10px; font-size: 13px; color: var(--muted); }
+  .fields { display: grid; gap: 6px; }
+  .fields input, .fields select { width: 100%; padding: 10px 12px; font-size: 17px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; }
+  .fields input:focus, .fields select:focus { outline: none; border-color: var(--accent); }
+  .row2 { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+  .row2 select { width: auto; }
+  #count { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  main { padding: 10px 10px 24px; max-width: 640px; margin: 0 auto; }
+  .hint { color: var(--muted); font-size: 14px; line-height: 1.6; padding: 8px 6px; }
+
+  /* voter slip, modelled on the printed slip */
+  .slip { background: var(--card); border: 1.5px solid #222; margin: 0 0 12px; font-size: 15px; }
+  .slip .head { display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 6px 8px 0; }
+  .slip .meta { font-size: 12.5px; text-align: right; line-height: 1.5; white-space: nowrap; }
+  .slip .meta span + span { margin-left: 12px; }
+  .slip .idline { display: flex; align-items: center; gap: 10px; padding: 2px 8px 4px; }
+  .slip .boxno { min-width: 46px; padding: 0 6px; border: 1.5px solid #222; text-align: center; font-weight: 700;
+    font-family: "Times New Roman", Georgia, serif; font-size: 20px; line-height: 28px; }
+  .slip .epic { font-size: 22px; font-weight: 700; font-family: Arial, Helvetica, sans-serif; letter-spacing: .3px; word-break: break-all; }
+  .slip .epic.none { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .slip .line { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: baseline; padding: 3px 8px; }
+  .slip .line .k { font-weight: 600; }
+  .slip .line b { font-size: 17px; }
+  .slip .line .r { text-align: right; white-space: nowrap; }
+  .slip .line .r b { margin-left: 4px; }
+  .slip .line .r .g { margin-left: 10px; }
+  .slip .en { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+  .slip .kendra { border-top: 1px solid #222; margin: 6px 6px 0; padding: 4px 4px 3px; font-size: 13px; text-align: center; }
+  .slip .time { background: var(--pink); color: #fff; text-align: center; font-size: 13px; padding: 3px 4px; }
+  #more { margin: 4px auto 0; display: block; width: auto; padding: 10px 22px; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<section id="lock">
+  <div class="lockbox">
+    <img src="icon-192.png" alt="">
+    <h1>मतदाता खोज</h1>
+    <p>ग्राम पंचायत आडसर · वार्ड 1–11</p>
+    <form id="lockForm" autocomplete="off">
+      <input id="pw" type="password" placeholder="पासवर्ड डालें" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <label><input id="showPw" type="checkbox"> पासवर्ड दिखाएं</label>
+      <label><input id="remember" type="checkbox" checked> इस फ़ोन पर याद रखें</label>
+      <button class="btn" id="unlockBtn" type="submit">खोलें</button>
+    </form>
+    <div id="lockMsg"></div>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <header>
+    <div class="titlebar"><b>मतदाता खोज · आडसर</b><button id="lockBtn" type="button">लॉक करें</button></div>
+    <div class="fields">
+      <input id="qName" type="search" placeholder="नाम / Name / बॉक्स नं. / Voter ID" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search">
+      <div class="row2">
+        <input id="qRel" type="search" placeholder="पिता / पति का नाम" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <select id="qWard" aria-label="वार्ड"><option value="">सभी वार्ड</option></select>
+      </div>
+    </div>
+    <div id="count"></div>
+  </header>
+  <main>
+    <div id="results"></div>
+    <button class="btn hidden" id="more" type="button">और दिखाएं</button>
+  </main>
+</section>
+
+<script>
+'use strict';
+const PS = 3, ZP = 35;                       // पंचायत समिति / जिला परिषद निर्वाचन क्षेत्र
+const POLL_TIME = 'मतदान समय : प्रातः 7 से सायं 5 बजे तक';
+const PAGE = 50;
+const $ = (id) => document.getElementById(id);
+const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const toB64 = (u) => btoa(String.fromCharCode(...u));
+const store = {  // localStorage can be missing or blocked (private mode); the app must still work without it
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+
+// ---------- unlocking ----------
+let encrypted = null;
+async function loadEncrypted() {
+  if (!encrypted) encrypted = await (await fetch('data.enc', { cache: 'no-cache' })).json();
+  return encrypted;
+}
+async function decryptWith(rawKey) {
+  const enc = await loadEncrypted();
+  const key = await crypto.subtle.importKey('raw', rawKey, 'AES-GCM', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(enc.iv) }, key, fromB64(enc.ct));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+async function unwrapWithPassword(pw) {
+  const enc = await loadEncrypted();
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  const kek = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: fromB64(enc.salt), iterations: enc.iter },
+    base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  for (const s of enc.slots) {
+    try { return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(s.iv) }, kek, fromB64(s.key))); }
+    catch (e) { /* not this slot */ }
+  }
+  return null;
+}
+
+$('showPw').addEventListener('change', (e) => { $('pw').type = e.target.checked ? 'text' : 'password'; });
+$('lockForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const pw = $('pw').value.trim();
+  if (!pw) return;
+  $('unlockBtn').disabled = true; $('lockMsg').style.color = '#6b7280'; $('lockMsg').textContent = 'खुल रहा है…';
+  try {
+    if (!crypto.subtle) throw new Error('insecure');
+    const raw = await unwrapWithPassword(pw);
+    if (!raw) { $('lockMsg').style.color = ''; $('lockMsg').textContent = 'पासवर्ड गलत है'; return; }
+    const data = await decryptWith(raw);
+    if ($('remember').checked) store.set('vk', toB64(raw));
+    $('pw').value = '';
+    start(data);
+  } catch (err) {
+    $('lockMsg').style.color = '';
+    $('lockMsg').textContent = err.message === 'insecure' ? 'यह पेज https लिंक से खोलें' : 'फ़ाइल लोड नहीं हुई — एक बार इंटरनेट चालू करके खोलें';
+  } finally { $('unlockBtn').disabled = false; }
+});
+$('lockBtn').addEventListener('click', () => {
+  store.del('vk'); records = []; $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = '';
+  $('app').classList.add('hidden'); $('lock').classList.remove('hidden'); $('lockMsg').textContent = '';
+});
+
+// ---------- normalising for fuzzy matching ----------
+// English: fold spellings that sound alike (ee/i, oo/u, w/v, sh/s, kh/k, ph/f, ksh/x, ai/e, doubled letters, spaces).
+function normEn(s) {
+  s = s.toLowerCase().replace(/[^a-z]/g, '');
+  s = s.replace(/ksh/g, 'x').replace(/chh/g, 'c').replace(/ch/g, 'c').replace(/sh/g, 's').replace(/ph/g, 'f')
+       .replace(/([kgbdtj])h/g, '$1').replace(/w/g, 'v').replace(/z/g, 'j').replace(/q/g, 'k')
+       .replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/ay/g, 'ai').replace(/ai/g, 'e').replace(/au/g, 'o')
+       .replace(/y/g, 'i').replace(/m(?=[bp])/g, 'n');
+  return s.replace(/(.)\1+/g, '$1');
+}
+// Hindi: ignore nukta, halant, anusvara/chandrabindu and long/short vowel differences; श/ष→स, ण→न.
+function normHi(s) {
+  s = s.normalize('NFD').replace(/[\s़्ऀ-ः॰‌‍]/g, '');
+  return s.replace(/ी/g, 'ि').replace(/ू/g, 'ु').replace(/ै/g, 'े').replace(/ौ/g, 'ो').replace(/ॉ/g, 'ा')
+          .replace(/[शष]/g, 'स').replace(/[णञङ]/g, 'न');
+}
+const isHindi = (s) => /[ऀ-ॿ]/.test(s);
+
+// Smallest number of edits that turns q into some part of t (so "mangi" matches inside "mangilal").
+// Swapping two neighbouring letters ("parkash" for "prakash") counts as one edit.
+function approx(q, t) {
+  const m = q.length, n = t.length;
+  let prev2 = new Array(n + 1).fill(0), prev = new Array(n + 1).fill(0), cur = new Array(n + 1);
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = q.charCodeAt(i - 1) === t.charCodeAt(j - 1) ? 0 : 1;
+      let v = Math.min(prev[j - 1] + cost, prev[j] + 1, cur[j - 1] + 1);
+      if (i > 1 && j > 1 && q[i - 1] === t[j - 2] && q[i - 2] === t[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+      cur[j] = v;
+    }
+    [prev2, prev, cur] = [prev, cur, prev2];
+  }
+  let best = m;
+  for (let j = 0; j <= n; j++) if (prev[j] < best) best = prev[j];
+  return best;
+}
+const allowed = (len) => (len <= 3 ? 0 : len <= 8 ? 1 : len <= 12 ? 2 : 3);
+
+// lower score = better match; null = no match
+function score(q, t) {
+  if (!q) return 0;
+  const d = approx(q, t);
+  if (d > allowed(q.length)) return null;
+  let s = d * 10 + Math.abs(t.length - q.length) * 0.05;
+  if (t.startsWith(q)) s -= 4;
+  if (t === q) s -= 3;
+  return s;
+}
+
+// ---------- search ----------
+let records = [], shown = 0, hits = [], kendra = {};
+function start(data) {
+  kendra = data.kendra;
+  const F = Object.fromEntries(data.fields.map((f, i) => [f, i]));
+  records = data.rows.map((r) => {
+    const o = {};
+    for (const f in F) o[f] = r[F[f]];
+    o.nEn = normEn(o.name); o.rEn = normEn(o.relname); o.nHi = normHi(o.hname); o.rHi = normHi(o.hrel);
+    o.epicKey = (o.epic || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    return o;
+  });
+  const wards = [...new Set(records.map((r) => r.ward))].sort((a, b) => a - b);
+  const sel = $('qWard'); sel.length = 1;
+  for (const w of wards) sel.add(new Option(`वार्ड ${w}`, w));
+  $('lock').classList.add('hidden'); $('app').classList.remove('hidden');
+  search();
+}
+
+function search() {
+  const nameQ = $('qName').value.trim(), relQ = $('qRel').value.trim(), ward = $('qWard').value;
+  const pool = ward ? records.filter((r) => String(r.ward) === ward) : records;
+  hits = [];
+  if (!nameQ && !relQ) {
+    $('count').textContent = ward ? `वार्ड ${ward}: ${pool.length} मतदाता` : `कुल ${records.length} मतदाता — नाम लिखकर खोजें`;
+    $('results').innerHTML = '<div class="hint">नाम या पिता/पति का नाम हिंदी या English में लिखें।<br>' +
+      'गलत स्पेलिंग भी चलेगी, जैसे <b>bhanvarlal</b>, <b>mangi lal</b>, <b>मांगीलाल</b>।<br>' +
+      'बॉक्स नंबर (जैसे <b>25</b>) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।</div>';
+    $('more').classList.add('hidden');
+    return;
+  }
+  if (/^\d{1,4}$/.test(nameQ) && !relQ) {                                   // box number
+    hits = pool.filter((r) => r.box === +nameQ).map((r) => [0, r]);
+  } else if (/\d{3,}/.test(nameQ) && /[a-z]/i.test(nameQ) || /^rj\W?\d/i.test(nameQ)) {   // voter ID
+    const k = nameQ.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    hits = pool.filter((r) => r.epicKey.includes(k)).map((r) => [0, r]);
+  } else {
+    const nq = nameQ && (isHindi(nameQ) ? ['nHi', normHi(nameQ)] : ['nEn', normEn(nameQ)]);
+    const rq = relQ && (isHindi(relQ) ? ['rHi', normHi(relQ)] : ['rEn', normEn(relQ)]);
+    for (const r of pool) {
+      let s = 0;
+      if (nq) { const x = score(nq[1], r[nq[0]]); if (x === null) continue; s += x; }
+      if (rq) { const x = score(rq[1], r[rq[0]]); if (x === null) continue; s += x; }
+      hits.push([s, r]);
+    }
+    hits.sort((a, b) => a[0] - b[0] || a[1].ward - b[1].ward || a[1].box - b[1].box);
+  }
+  $('count').textContent = hits.length ? `${hits.length} मतदाता मिले` : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
+  $('results').innerHTML = ''; shown = 0; showMore();
+}
+
+function showMore() {
+  const frag = document.createDocumentFragment();
+  for (const [, r] of hits.slice(shown, shown + PAGE)) frag.appendChild(slip(r));
+  shown += PAGE;
+  $('results').appendChild(frag);
+  $('more').classList.toggle('hidden', shown >= hits.length);
+}
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function kv(label, value) { const f = document.createDocumentFragment(); f.append(label, el('b', null, value)); return f; }
+
+function slip(r) {
+  const [bhag, ...rest] = (kendra[r.ward] || '').split('-');
+  const d = el('div', 'slip');
+  const head = el('div', 'head');
+  head.append(el('div'));
+  const meta = el('div', 'meta');
+  const m1 = el('div'); m1.append(el('span', null, `पं.सं. ${PS}`), el('span', null, `जि.प. ${ZP}`));
+  const m2 = el('div'); m2.append(el('span', null, `वार्ड नं. : ${r.ward}`), el('span', null, `भाग सं. ${bhag.trim()}`));
+  meta.append(m1, m2); head.append(meta);
+
+  const idl = el('div', 'idline');
+  idl.append(el('div', 'boxno', r.box), r.epic ? el('div', 'epic', r.epic) : el('div', 'epic none', 'Voter ID नहीं'));
+
+  const l1 = el('div', 'line');
+  const n = el('div'); n.append(el('span', 'k', 'नाम: '), el('b', null, r.hname), el('span', 'en', r.name));
+  const h = el('div', 'r'); h.append(kv('मकान संख्या:', r.house || '—'));
+  l1.append(n, h);
+
+  const l2 = el('div', 'line');
+  const p = el('div'); p.append(el('span', 'k', `${r.rel} का नाम: `), el('b', null, r.hrel), el('span', 'en', r.relname));
+  const ag = el('div', 'r'); ag.append(kv('आयु:', r.age)); const g = el('span', 'g'); g.append(kv('लिंग:', r.sex)); ag.append(g);
+  l2.append(p, ag);
+
+  const k = el('div', 'kendra'); k.append('मतदान केन्द्र : ', el('b', null, bhag.trim()), ` - ${rest.join('-').trim()}`);
+  d.append(head, idl, l1, l2, k, el('div', 'time', POLL_TIME));
+  return d;
+}
+
+let timer;
+for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 150); });
+$('qWard').addEventListener('change', search);
+$('more').addEventListener('click', showMore);
+
+// ---------- open straight into search if this phone remembered the key ----------
+(async () => {
+  const vk = store.get('vk');
+  if (!vk || !crypto.subtle) return;
+  try { start(await decryptWith(fromB64(vk))); }
+  catch (e) { store.del('vk'); }   // data was rebuilt with a new key, or offline before first load: ask for the password
+})();
+</script>
+</body>
+</html>
