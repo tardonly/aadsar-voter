@@ -5,11 +5,20 @@
 //   KV_REST_API_URL / KV_REST_API_TOKEN  added automatically when you connect an Upstash Redis database
 const crypto = require('crypto');
 
-const DB_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const DB_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// Vercel may add the database variables with a custom prefix (e.g. STORAGE_KV_REST_API_URL), so accept those too.
+function findEnv(names) {
+  for (const n of names) if (process.env[n]) return process.env[n];
+  for (const [k, v] of Object.entries(process.env)) if (v && names.some((n) => k.endsWith('_' + n))) return v;
+  return null;
+}
+const DB_URL = findEnv(['KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL']);
+const DB_TOKEN = findEnv(['KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN']);
 
 async function redis(...cmd) {
-  if (!DB_URL || !DB_TOKEN) throw new Error('database not connected');
+  if (!DB_URL || !DB_TOKEN) {
+    const seen = Object.keys(process.env).filter((k) => /KV|REDIS|UPSTASH/.test(k)).join(', ') || 'none';
+    throw new Error(`database not connected (database variables found: ${seen})`);
+  }
   const r = await fetch(DB_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${DB_TOKEN}`, 'Content-Type': 'application/json' },
