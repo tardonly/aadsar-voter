@@ -28,6 +28,13 @@
   .btn.danger { background: #fff; color: var(--bad); border: 1px solid #fecaca; font-weight: 500; }
   .row { display: flex; gap: 8px; }
   .row input { flex: 1; }
+  .stack { display: grid; gap: 8px; }
+  input[type=tel] { width: 100%; padding: 11px 13px; font-size: 17px; border: 1.5px solid var(--line); border-radius: 10px; }
+  .btn.wa { background: #1fa855; color: #fff; border: 0; font-weight: 600; }
+  #copyPw { white-space: nowrap; flex: none; }
+  #sharePw { flex: 1; }
+  .phone { font-size: 13.5px; margin-top: 2px; }
+  .phone button { margin-left: 8px; padding: 2px 8px; font-size: 12.5px; border-radius: 6px; border: 1px solid var(--line); background: #fff; color: var(--accent); }
   .msg { min-height: 20px; margin-top: 8px; font-size: 14px; color: var(--bad); }
   .bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .bar button { padding: 6px 12px; font-size: 14px; }
@@ -37,14 +44,15 @@
   .filter { display: flex; gap: 6px; margin-bottom: 10px; }
   .filter button { padding: 5px 12px; font-size: 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
   .filter button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .person { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .person { padding: 12px 0; border-top: 1px solid var(--line); }
   .person:first-child { border-top: 0; }
   .person .name { font-weight: 600; font-size: 16px; }
   .person .info { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
   .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin-left: 6px; vertical-align: 2px; }
   .badge.on { background: #dcfce7; color: var(--ok); }
   .badge.off { background: #fee2e2; color: var(--bad); }
-  .actions { display: flex; gap: 6px; }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .actions button { padding: 6px 10px; font-size: 13px; }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
 </style>
@@ -68,8 +76,9 @@
 
     <div class="card">
       <h2>नया व्यक्ति जोड़ें</h2>
-      <form id="addForm" class="row" autocomplete="off">
+      <form id="addForm" class="stack" autocomplete="off">
         <input id="newName" type="text" placeholder="व्यक्ति का नाम (जैसे रमेश, बूथ 54)" maxlength="60" required>
+        <input id="newPhone" type="tel" inputmode="tel" placeholder="WhatsApp मोबाइल नंबर (जैसे 98765 43210)" maxlength="20">
         <button class="btn" id="addBtn" type="submit">पासवर्ड बनाएं</button>
       </form>
       <div class="msg" id="addMsg"></div>
@@ -107,7 +116,10 @@ let token = appToken && appToken.startsWith('admin.') ? appToken : null;
 const MSG = {
   wrong: 'एडमिन पासवर्ड गलत है', too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   offline: 'इंटरनेट नहीं है', server: 'सर्वर में दिक्कत', name: 'नाम लिखें', not_found: 'यह व्यक्ति नहीं मिला',
+  phone: 'मोबाइल नंबर सही नहीं है — 10 अंकों का नंबर लिखें',
 };
+// 919876543210 → "+91 98765 43210"
+const showPhone = (p) => (/^91\d{10}$/.test(p) ? `+91 ${p.slice(2, 7)} ${p.slice(7)}` : p ? `+${p}` : '');
 async function api(payload) {
   let r;
   try {
@@ -148,9 +160,13 @@ async function refresh() {
   $('listMsg').textContent = ''; users = r.users; render();
 }
 
-function showPassword(name, pw) {
+let shareTo = '';   // phone number the WhatsApp button sends to ('' = let WhatsApp ask for a contact)
+function showPassword(name, pw, phone) {
+  shareTo = phone || '';
   $('newPwFor').textContent = `${name} का पासवर्ड:`;
   $('newPwText').textContent = pw;
+  $('sharePw').textContent = shareTo ? `WhatsApp पर भेजें (${showPhone(shareTo)})` : 'WhatsApp पर भेजें';
+  $('sharePw').classList.toggle('wa', !!shareTo);
   $('newPw').classList.remove('hidden');
   $('newPw').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -162,7 +178,7 @@ $('copyPw').addEventListener('click', async () => {
 $('sharePw').addEventListener('click', () => {
   const link = location.href.replace(/admin\.html.*$/, '');
   const text = `मतदाता खोज\nलिंक: ${link}\nपासवर्ड: ${$('newPwText').textContent}\n(यह पासवर्ड किसी और को न दें)`;
-  location.href = 'https://wa.me/?text=' + encodeURIComponent(text);
+  location.href = `https://wa.me/${shareTo}?text=` + encodeURIComponent(text);   // opens the chat with that number directly
 });
 
 $('addForm').addEventListener('submit', async (e) => {
@@ -170,11 +186,11 @@ $('addForm').addEventListener('submit', async (e) => {
   const name = $('newName').value.trim();
   if (!name) return;
   $('addBtn').disabled = true; $('addMsg').textContent = '';
-  const r = await api({ action: 'add', name });
+  const r = await api({ action: 'add', name, phone: $('newPhone').value });
   $('addBtn').disabled = false;
   if (r.error) { $('addMsg').textContent = errText(r); return; }
-  $('newName').value = '';
-  showPassword(r.user.name, r.password);
+  $('newName').value = ''; $('newPhone').value = '';
+  showPassword(r.user.name, r.password, r.user.phone);
   refresh();
 });
 
@@ -193,15 +209,40 @@ function render() {
     const row = el('div', 'person');
     const left = el('div');
     const nm = el('div', 'name', u.name); nm.append(el('span', `badge ${u.retired ? 'off' : 'on'}`, u.retired ? 'बंद' : 'चालू'));
+    if (u.kicks) nm.append(el('span', 'badge warn', `एक साथ दो फ़ोन: ${u.kicks} बार`));
     const info = el('div', 'info', `बनाया: ${fmt(u.created)} · आखिरी इस्तेमाल: ${fmt(u.lastSeen)}` + (u.retired ? ` · बंद किया: ${fmt(u.retiredAt)}` : ''));
-    left.append(nm, info);
+    const sess = el('div', 'info', u.loggedIn
+      ? `अभी लॉगिन: ${u.sessionDevice || '—'} · IP ${u.sessionIp || '—'} · ${fmt(u.sessionAt)} से`
+      : 'अभी किसी फ़ोन पर लॉगिन नहीं');
+    const ph = el('div', 'phone', u.phone ? `📱 ${showPhone(u.phone)}` : 'मोबाइल नंबर नहीं जोड़ा');
+    const edit = el('button', null, u.phone ? 'बदलें' : 'जोड़ें');
+    edit.type = 'button';
+    edit.addEventListener('click', async () => {
+      const v = prompt(`${u.name} का WhatsApp मोबाइल नंबर:`, u.phone ? showPhone(u.phone) : '');
+      if (v === null) return;
+      const r = await api({ action: 'phone', id: u.id, phone: v });
+      if (r.error) { $('listMsg').textContent = errText(r); return; }
+      refresh();
+    });
+    ph.append(edit);
+    left.append(nm, ph, info, sess);
     const act = el('div', 'actions');
+    if (u.loggedIn) {
+      const out = el('button', 'btn ghost', 'लॉग आउट करें');
+      out.addEventListener('click', async () => {
+        if (!confirm(`${u.name} को उनके फ़ोन से लॉग आउट करें? वे उसी पासवर्ड से फिर लॉगिन कर सकेंगे।`)) return;
+        const r = await api({ action: 'logout', id: u.id });
+        if (r.error) { $('listMsg').textContent = errText(r); return; }
+        refresh();
+      });
+      act.append(out);
+    }
     const reset = el('button', 'btn ghost', 'नया पासवर्ड');
     reset.addEventListener('click', async () => {
       if (!confirm(`${u.name} के लिए नया पासवर्ड बनाएं? पुराना पासवर्ड बंद हो जाएगा।`)) return;
       const r = await api({ action: 'reset', id: u.id });
       if (r.error) { $('listMsg').textContent = errText(r); return; }
-      showPassword(u.name, r.password); refresh();
+      showPassword(u.name, r.password, r.user.phone); refresh();
     });
     act.append(reset);
     if (!u.retired) {

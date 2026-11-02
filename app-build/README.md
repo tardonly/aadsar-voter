@@ -22,6 +22,13 @@ Open the app, log in with the **admin password** → an **एडमिन** butt
 - **नया व्यक्ति जोड़ें:** type the person's name → you get their password once → Copy or send by WhatsApp.
 - **बंद करें:** that password stops working; the person is logged out on their next search.
 - **नया पासवर्ड:** new password for the same person (e.g. they forgot it); the old one stops working.
+- **लॉग आउट करें:** ends the person's current session; they can log in again with the same password.
+
+**One phone at a time:** each login gets its own session code. If the same password is opened on a second phone,
+the first phone is logged out on its next search ("यह पासवर्ड किसी दूसरे फ़ोन पर खोला गया है"). The admin list shows
+each person's current phone, IP and login time, and a yellow **एक साथ दो फ़ोन: N बार** count when their password was
+opened on another phone while the first was still in use (used in the last 30 minutes): a sign of sharing.
+The admin password can be used on several devices.
 Changing `ADMIN_PASSWORD` in Vercel (and redeploying) signs out every admin session.
 
 ## Phones (Android or iPhone)

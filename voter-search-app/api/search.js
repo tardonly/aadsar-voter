@@ -1,5 +1,6 @@
 // POST {token, name, rel, ward, offset} → {total, offset, results: [...up to 50 voters], wards}
-// Every search checks that the password behind the token is still active, so retiring takes effect at once.
+// Every search checks that the password behind the token is still active and that this phone holds its newest
+// session, so retiring or logging in on another phone takes effect at once.
 const { redis, whoIs, send, route } = require('./_lib.js');
 const { load, search, publicFields } = require('./_search.js');
 
@@ -8,7 +9,7 @@ const PAGE = 50, MAX_OFFSET = 200, PER_MINUTE = 120;
 module.exports = route(async (req, res, b) => {
   const user = await whoIs(b.token);
   if (!user) return send(res, 401, { error: 'login' });
-  if (user.retired === '1') return send(res, 403, { error: 'retired' });
+  if (user.status !== 'ok') return send(res, 403, { error: user.status });   // retired, or opened on another phone
 
   const minuteKey = `rate:${user.id}:${Math.floor(Date.now() / 60000)}`;
   const n = await redis('INCR', minuteKey);

@@ -36,7 +36,7 @@
   .lockbox label { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 12px 0; font-size: 14px; color: var(--muted); }
   .btn { width: 100%; padding: 12px; font-size: 18px; border: 0; border-radius: 10px; background: var(--pink-dark); color: #fff; font-weight: 600; }
   .btn:disabled { opacity: .6; }
-  #lockMsg { min-height: 22px; margin-top: 10px; font-size: 14px; color: var(--bad); }
+  #lockMsg { min-height: 22px; margin-top: 10px; font-size: 14px; color: var(--bad); line-height: 1.5; }
   #lockMsg.info { color: var(--muted); }
 
   /* search screen */
@@ -137,6 +137,8 @@ const MSG = {
   wrong: 'पासवर्ड गलत है',
   retired: 'यह पासवर्ड बंद कर दिया गया है — एडमिन से नया पासवर्ड लें',
   login: 'दोबारा लॉगिन करें',
+  logged_out: 'आपको लॉग आउट कर दिया गया है — दोबारा लॉगिन करें',
+  other_device: 'यह पासवर्ड किसी दूसरे फ़ोन पर खोला गया है, इसलिए यहाँ से लॉग आउट हो गया। एक पासवर्ड एक समय पर एक ही फ़ोन पर चलता है।',
   too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   slow_down: 'बहुत तेज़ खोज — एक मिनट रुककर कोशिश करें',
   offline: 'इंटरनेट नहीं है — इंटरनेट चालू करें',
@@ -181,7 +183,10 @@ $('lockForm').addEventListener('submit', async (e) => {
   $('pw').value = '';
   showApp(r.name, r.admin);
 });
-$('lockBtn').addEventListener('click', () => signOut(''));
+$('lockBtn').addEventListener('click', () => {
+  api('logout', { token: store.get('tok') });   // close the session on the server; no need to wait
+  signOut('');
+});
 
 // ---------- search ----------
 let seq = 0, shown = 0, total = 0, last = null;
@@ -198,7 +203,7 @@ async function search(offset = 0) {
   if (!offset) $('count').textContent = 'खोज रहे हैं…';
   const r = await api('search', { ...q, offset, token: store.get('tok') });
   if (mine !== seq) return;                       // a newer search has started
-  if (r.error === 'retired' || r.error === 'login') return signOut(MSG[r.error]);
+  if (['retired', 'login', 'logged_out', 'other_device'].includes(r.error)) return signOut(MSG[r.error]);
   if (r.error) { $('count').textContent = MSG[r.error] || MSG.server; $('count').classList.add('bad'); return; }
   last = q; total = r.total;
   if (!offset) { $('results').innerHTML = ''; shown = 0; }
@@ -253,7 +258,7 @@ $('more').addEventListener('click', () => search(shown));
   showLock('जाँच रहे हैं…', true);
   const r = await api('check', { token: tok });
   if (r.error) return showLock(MSG[r.error] || MSG.server);
-  if (!r.active) return signOut(MSG.retired);
+  if (!r.active) return signOut(MSG[r.reason] || MSG.login);
   showApp(r.name, r.admin);
 })();
 </script>

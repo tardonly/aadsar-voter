@@ -1,8 +1,8 @@
 // Shared helpers for the API routes (files starting with "_" are not routes on Vercel).
 // Environment variables (set in Vercel → Project → Settings → Environment Variables):
-//   DATA_KEY        the key that unlocks data.enc (from app-build/DATA_KEY.txt)
+//   DATA_KEY        the key that unlocks api/_voters.enc (from app-build/DATA_KEY.txt)
 //   ADMIN_PASSWORD  password for admin.html
-//   KV_REST_API_URL / KV_REST_API_TOKEN  added automatically when you connect an Upstash Redis database
+//   KV_REST_API_URL / KV_REST_API_TOKEN  added automatically when you connect Upstash for Redis in Vercel
 const crypto = require('crypto');
 
 // Vercel may add the database variables with a custom prefix (e.g. STORAGE_KV_REST_API_URL), so accept those too.
@@ -37,12 +37,16 @@ function dataKey() {
 const hmac = (s) => crypto.createHmac('sha256', Buffer.from(dataKey(), 'base64')).update(s).digest('hex');
 // passwords are generated lower-case; normalising lets phones that auto-capitalise still work
 const pwHash = (pw) => hmac('pw:' + String(pw || '').trim().toLowerCase());
-const makeToken = (id) => `${id}.${hmac('tok:' + id).slice(0, 32)}`;
-function tokenId(t) {
-  const [id, sig] = String(t || '').split('.');
-  if (!id || !sig) return null;
-  const want = Buffer.from(hmac('tok:' + id).slice(0, 32)), got = Buffer.from(sig);
-  return want.length === got.length && crypto.timingSafeEqual(want, got) ? id : null;
+// A login token names the person and the session code of that login: "<id>.<session>.<signature>".
+// Only the newest session code is kept in Redis, so logging in on a second phone ends the first phone's session.
+const sign = (id, sid) => hmac(`tok:${id}:${sid}`).slice(0, 32);
+const newSession = () => crypto.randomBytes(9).toString('base64url');
+const makeToken = (id, sid) => `${id}.${sid}.${sign(id, sid)}`;
+function parseToken(t) {
+  const [id, sid, sig] = String(t || '').split('.');
+  if (!id || !sid || !sig) return null;
+  const want = Buffer.from(sign(id, sid)), got = Buffer.from(sig);
+  return want.length === got.length && crypto.timingSafeEqual(want, got) ? { id, sid } : null;
 }
 function sameText(a, b) {
   const x = Buffer.from(crypto.createHash('sha256').update(String(a)).digest());
@@ -73,6 +77,15 @@ async function getUser(id) {
 
 // simple brute-force guard: 10 wrong tries per IP per 15 minutes
 const clientIp = (req) => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+// short phone description for the admin list, e.g. "Android · Chrome"
+function deviceName(req) {
+  const ua = String(req.headers['user-agent'] || '');
+  const os = /iPhone|iPad/.test(ua) ? 'iPhone' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+    : /Macintosh/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'अज्ञात';
+  const br = /SamsungBrowser/.test(ua) ? 'Samsung' : /EdgA?\//.test(ua) ? 'Edge' : /CriOS|Chrome\//.test(ua) ? 'Chrome'
+    : /FxiOS|Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? `${os} · ${br}` : os;
+}
 async function blocked(req, kind) { return Number(await redis('GET', `fail:${kind}:${clientIp(req)}`)) >= 10; }
 async function failed(req, kind) {
   const k = `fail:${kind}:${clientIp(req)}`;
@@ -96,12 +109,18 @@ function route(fn) {
   };
 }
 
-// The user behind a token: an admin, an active/retired person, or null.
+// The user behind a token: an admin, a person (with .status), or null.
+// status: 'ok' | 'retired' | 'logged_out' (session ended by admin or a new password)
+//         | 'other_device' (this password has since been opened on another phone)
 async function whoIs(token) {
-  if (isAdminToken(token)) return { id: 'admin', name: 'एडमिन', admin: true };
-  const id = tokenId(token);
-  return id && id !== 'admin' ? getUser(id) : null;
+  if (isAdminToken(token)) return { id: 'admin', name: 'एडमिन', admin: true, status: 'ok' };
+  const t = parseToken(token);
+  const user = t && t.id !== 'admin' ? await getUser(t.id) : null;
+  if (!user) return null;
+  user.status = user.retired === '1' ? 'retired' : !user.session ? 'logged_out' : user.session !== t.sid ? 'other_device' : 'ok';
+  user.sid = t.sid;
+  return user;
 }
 
-module.exports = { redis, dataKey, pwHash, makeToken, tokenId, sameText, isAdminPassword, adminToken, isAdminToken, whoIs,
-  newPassword, getUser, blocked, failed, send, route };
+module.exports = { redis, dataKey, pwHash, newSession, makeToken, parseToken, sameText, isAdminPassword, adminToken, isAdminToken,
+  whoIs, newPassword, getUser, clientIp, deviceName, blocked, failed, send, route };
