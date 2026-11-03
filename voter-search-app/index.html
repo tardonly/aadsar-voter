@@ -109,7 +109,7 @@
   @media print {
     body > *:not(#printArea) { display: none !important; }
     #printArea { display: block; }
-    #printArea img { display: block; width: 210mm; height: 297mm; }
+    #printArea img { display: block; }   /* sized in mm by oneSlip() */
   }
   #more { margin: 4px auto 0; display: block; width: auto; padding: 10px 22px; font-size: 16px; }
   /* "Powered by DigyAi" footer */
@@ -185,7 +185,6 @@ const MSG = {
   other_device: 'यह पासवर्ड किसी दूसरे फ़ोन पर खोला गया है, इसलिए यहाँ से लॉग आउट हो गया। एक पासवर्ड एक समय पर एक ही फ़ोन पर चलता है।',
   too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   slow_down: 'बहुत तेज़ खोज — एक मिनट रुककर कोशिश करें',
-  ward_limit: 'आज के वार्ड PDF पूरे हो गए — कल फिर कोशिश करें',
   admin: 'यह सिर्फ़ एडमिन कर सकता है',
   offline: 'इंटरनेट नहीं है — इंटरनेट चालू करें',
   server: 'सर्वर में दिक्कत — थोड़ी देर बाद कोशिश करें',
@@ -364,7 +363,9 @@ async function oneSlip(r, how, btn) {
     if (how === 'pdf') Slips.singlePdf(page, `पर्ची-वार्ड-${r.ward}-बॉक्स-${r.box}.pdf`);
     else {
       const img = document.querySelector('#printArea img');
-      img.src = page.toDataURL('image/png');
+      const { canvas, wMm, hMm } = Slips.corner(page);
+      img.style.width = `${wMm}mm`; img.style.height = `${hMm}mm`;
+      img.src = canvas.toDataURL('image/png');
       await img.decode();
       window.print();
     }
@@ -375,7 +376,7 @@ async function oneSlip(r, how, btn) {
 // every slip of the chosen ward, 12 per A4 page
 function wardButton() {
   const w = $('qWard').value;
-  $('wardPdf').classList.toggle('hidden', !w);
+  $('wardPdf').classList.toggle('hidden', !w || !isAdmin);   // whole-ward PDF: admin only
   if (!$('wardPdf').disabled) $('wardPdf').textContent = `⬇ वार्ड ${w} की सभी पर्चियाँ (PDF)`;
 }
 $('wardPdf').addEventListener('click', async () => {

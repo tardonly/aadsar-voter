@@ -1,13 +1,15 @@
 // POST {adminPassword | token, action, ...}   (token = the admin token from logging into the app with the admin password)
-//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks, wardPdfs}]}
+//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks}]}
 //   action "add",   name, phone  → {user, password}   (password is shown to the admin once; only its hash is stored)
 //   action "reset", id           → {user, password}   (new password for the same person; the old one stops working)
 //   action "retire", id          → {ok}               (password stops working; the phone is logged out at once)
 //   action "logout", id          → {ok}               (ends the person's current session; they can log in again)
 //   action "phone", id, phone    → {user}             (add or change the person's WhatsApp number; "" removes it)
+//   action "clearMarks", status → {marks}            (removes every 'done' | 'coming' | 'absent' mark, or 'all' of them)
+// "list" and "clearMarks" also return marks: {done, coming, absent}, how many slips carry each status mark.
 // Phone numbers are stored as digits with the country code, e.g. 919876543210, ready for a wa.me link.
 const crypto = require('crypto');
-const { redis, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
+const { redis, MARKS, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
 
 // "98765 43210", "098765-43210", "+91 98765 43210" → "919876543210"; '' when empty; null when not a valid number
 function normPhone(s) {
@@ -19,6 +21,15 @@ function normPhone(s) {
   if (!d.startsWith('91') && d.length >= 11 && d.length <= 15) return d;   // other countries, already with code
   return null;
 }
+
+// status → the slips ("<ward>:<box>") carrying that mark
+async function marksByStatus() {
+  const flat = (await redis('HGETALL', 'marks')) || [];
+  const by = Object.fromEntries(MARKS.map((m) => [m, []]));
+  for (let i = 0; i < flat.length; i += 2) { const m = String(flat[i + 1]).split('|')[0]; if (by[m]) by[m].push(flat[i]); }
+  return by;
+}
+const counts = (by) => Object.fromEntries(MARKS.map((m) => [m, by[m].length]));
 
 async function freshPassword() {
   for (;;) {
@@ -44,10 +55,18 @@ module.exports = route(async (req, res, b) => {
         retired: u.retired === '1', retiredAt: u.retiredAt || null,
         loggedIn: !!u.session && u.retired !== '1',
         sessionAt: u.sessionAt || null, sessionIp: u.sessionIp || null, sessionDevice: u.sessionDevice || null,
-        logins: Number(u.logins || 0), kicks: Number(u.kicks || 0), wardPdfs: Number(u.wardPdfs || 0),
+        logins: Number(u.logins || 0), kicks: Number(u.kicks || 0),
       }))
       .sort((x, y) => (x.created < y.created ? 1 : -1));
-    return send(res, 200, { users });
+    return send(res, 200, { users, marks: counts(await marksByStatus()) });
+  }
+
+  if (b.action === 'clearMarks') {
+    if (b.status !== 'all' && !MARKS.includes(b.status)) return send(res, 400, { error: 'status' });
+    const by = await marksByStatus();
+    const keys = b.status === 'all' ? MARKS.flatMap((m) => by[m]) : by[b.status];
+    for (let i = 0; i < keys.length; i += 500) await redis('HDEL', 'marks', ...keys.slice(i, i + 500));
+    return send(res, 200, { marks: counts(await marksByStatus()) });
   }
 
   if (b.action === 'add') {

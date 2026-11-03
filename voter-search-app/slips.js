@@ -123,6 +123,14 @@ const Slips = (() => {
     ctx.restore();
     return c;
   }
+  // Just the top-left corner of single(): the slip and its cut lines, with its size in mm. Printing this instead of
+  // the whole A4 image means nothing reaches the bottom of the paper, so it never spills onto a second page.
+  function corner(page) {
+    const w = Math.ceil(MARGIN + SLIP_W + GAP), h = Math.ceil(MARGIN + SLIP_H + GAP);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(page, 0, 0, w, h, 0, 0, w, h);
+    return { canvas: c, wMm: (w / DPI) * 25.4, hMm: (h / DPI) * 25.4 };
+  }
 
   // A PDF of all the slips, drawn one page at a time so a phone never holds every page image at once.
   // onPage(done, total) reports progress.
@@ -148,5 +156,5 @@ const Slips = (() => {
     doc.save(fileName);
   }
 
-  return { loadFonts, single, savePdf, singlePdf, PER_PAGE };
+  return { loadFonts, single, corner, savePdf, singlePdf, PER_PAGE };
 })();
