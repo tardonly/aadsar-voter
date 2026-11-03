@@ -39,6 +39,9 @@ phones pick up new marks within a minute or when the app is opened again. Marks 
 Open the link, enter the password, keep "इस फ़ोन पर याद रखें" ticked. Optional: add to home screen
 (Android ⋮ → Add to Home screen, iPhone Share → Add to Home Screen). Needs internet every time.
 
+**Whole ward:** choose a ward and leave the name boxes empty → every voter of that ward in box order, 10 at a
+time (**और दिखाएं** for the next 10).
+
 **Slips:** every slip has **प्रिंट** and **PDF**: an A4 page with that one slip in the top-left corner, at the same
 size as on a full sheet, with cut lines. After choosing a ward, **वार्ड N की सभी पर्चियाँ (PDF)** saves every slip of
 the ward, 12 per A4 page. Each person can download at most 25 ward PDFs a day; the admin list shows a blue

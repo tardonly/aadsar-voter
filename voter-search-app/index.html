@@ -240,13 +240,14 @@ let seq = 0, shown = 0, total = 0, last = null;
 function hint() {
   $('results').innerHTML = '<div class="hint">नाम या पिता/पति का नाम हिंदी या English में लिखें।<br>' +
     'गलत स्पेलिंग भी चलेगी, जैसे <b>bhanvarlal</b>, <b>mangi lal</b>, <b>मांगीलाल</b>।<br>' +
-    'बॉक्स नंबर (जैसे <b>25</b>, वार्ड चुनकर) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।</div>';
+    'बॉक्स नंबर (जैसे <b>25</b>, वार्ड चुनकर) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।<br>' +
+    'सिर्फ़ वार्ड चुनें तो उस वार्ड के सभी मतदाता बॉक्स क्रम में दिखेंगे।</div>';
 }
 async function search(offset = 0) {
   const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value };
   $('count').classList.remove('bad');
   wardButton();
-  if (!q.name && !q.rel) { hint(); $('count').textContent = ''; $('more').classList.add('hidden'); return; }
+  if (!q.name && !q.rel && !q.ward) { hint(); $('count').textContent = ''; $('more').classList.add('hidden'); return; }
   const mine = ++seq;
   if (!offset) $('count').textContent = 'खोज रहे हैं…';
   const r = await api('search', { ...q, offset, token: store.get('tok') });
@@ -259,8 +260,9 @@ async function search(offset = 0) {
   for (const v of r.results) frag.appendChild(slip(v));
   $('results').appendChild(frag);
   shown = r.offset + r.results.length;
-  $('count').textContent = total ? `${total} मतदाता मिले` + (total > shown ? ` · ${shown} दिखाए` : '') : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
-  $('more').classList.toggle('hidden', !(shown < total && shown <= 200));   // server pages up to 250 results
+  const found = q.name || q.rel ? `${total} मतदाता मिले` : `वार्ड ${q.ward} · सभी ${total} मतदाता, बॉक्स क्रम में`;
+  $('count').textContent = total ? found + (total > shown ? ` · ${shown} दिखाए` : '') : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
+  $('more').classList.toggle('hidden', !(shown < Math.min(total, r.limit || 250)));   // name searches page up to 250 results
 }
 
 const loggedOut = (r) => ['retired', 'login', 'logged_out', 'other_device'].includes(r.error) && (signOut(MSG[r.error]), true);
