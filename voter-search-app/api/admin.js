@@ -1,5 +1,5 @@
 // POST {adminPassword | token, action, ...}   (token = the admin token from logging into the app with the admin password)
-//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks}]}
+//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks, wardPdfs}]}
 //   action "add",   name, phone  → {user, password}   (password is shown to the admin once; only its hash is stored)
 //   action "reset", id           → {user, password}   (new password for the same person; the old one stops working)
 //   action "retire", id          → {ok}               (password stops working; the phone is logged out at once)
@@ -44,7 +44,7 @@ module.exports = route(async (req, res, b) => {
         retired: u.retired === '1', retiredAt: u.retiredAt || null,
         loggedIn: !!u.session && u.retired !== '1',
         sessionAt: u.sessionAt || null, sessionIp: u.sessionIp || null, sessionDevice: u.sessionDevice || null,
-        logins: Number(u.logins || 0), kicks: Number(u.kicks || 0),
+        logins: Number(u.logins || 0), kicks: Number(u.kicks || 0), wardPdfs: Number(u.wardPdfs || 0),
       }))
       .sort((x, y) => (x.created < y.created ? 1 : -1));
     return send(res, 200, { users });

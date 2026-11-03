@@ -13,9 +13,15 @@
 <link rel="icon" href="icon-192.png">
 <title>मतदाता खोज</title>
 <style>
+  /* font the printed slip is drawn with (slips.js) */
+  @font-face { font-family: NotoDev; font-weight: 400; src: url(fonts/noto-sans-devanagari-devanagari-400-normal.woff2) format('woff2'); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; }
+  @font-face { font-family: NotoDev; font-weight: 400; src: url(fonts/noto-sans-devanagari-latin-400-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+  @font-face { font-family: NotoDev; font-weight: 700; src: url(fonts/noto-sans-devanagari-devanagari-700-normal.woff2) format('woff2'); unicode-range: U+0900-097F, U+1CD0-1CF9, U+200C-200D, U+20A8, U+20B9, U+25CC, U+A830-A839, U+A8E0-A8FF; }
+  @font-face { font-family: NotoDev; font-weight: 700; src: url(fonts/noto-sans-devanagari-latin-700-normal.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
   :root {
     --bg: #f3f4f6; --card: #fff; --ink: #111; --muted: #6b7280; --line: #d1d5db;
     --pink: #e0245e; --pink-dark: #c2185b; --accent: #1f4e8c; --bad: #b91c1c;
+    --done: #16a34a; --coming: #facc15; --absent: #dc2626;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
@@ -55,6 +61,9 @@
   .row2 select { width: auto; }
   #count { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 18px; }
   #count.bad { color: var(--bad); }
+  #wardPdf { margin-top: 6px; width: 100%; padding: 8px 10px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--accent);
+    border-radius: 10px; background: #fff; color: var(--accent); }
+  #wardPdf:disabled { opacity: .7; }
   main { padding: 10px 10px 24px; max-width: 640px; margin: 0 auto; }
   .hint { color: var(--muted); font-size: 14px; line-height: 1.6; padding: 8px 6px; }
 
@@ -77,6 +86,29 @@
   .slip .en { font-size: 12px; color: var(--muted); margin-left: 4px; font-weight: 400; }
   .slip .kendra { border-top: 1px solid #222; margin: 6px 6px 0; padding: 4px 4px 3px; font-size: 13px; text-align: center; }
   .slip .time { background: var(--pink); color: #fff; text-align: center; font-size: 13px; padding: 3px 4px; }
+  /* status mark the admin sets: a coloured bar on top of the slip, seen by everyone */
+  .slip .mark { display: none; padding: 4px 8px; font-size: 14px; font-weight: 700; color: #fff; }
+  .slip[data-mark] .mark { display: block; }
+  .slip[data-mark=done] { border-color: var(--done); } .slip[data-mark=done] .mark { background: var(--done); }
+  .slip[data-mark=coming] { border-color: #ca8a04; } .slip[data-mark=coming] .mark { background: var(--coming); color: #422006; }
+  .slip[data-mark=absent] { border-color: var(--absent); } .slip[data-mark=absent] .mark { background: var(--absent); }
+  .slip .acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-top: 1px dashed var(--line); background: #fafafa; }
+  .slip .acts button { padding: 5px 10px; font-size: 13.5px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  .slip .acts .sp { flex: 1; }
+  .slip .acts .m { font-weight: 600; }
+  .slip .acts .m.done { border-color: var(--done); color: var(--done); }
+  .slip .acts .m.coming { border-color: #ca8a04; color: #854d0e; }
+  .slip .acts .m.absent { border-color: var(--absent); color: var(--absent); }
+  .slip .acts .m.on.done { background: var(--done); color: #fff; }
+  .slip .acts .m.on.coming { background: var(--coming); color: #422006; }
+  .slip .acts .m.on.absent { background: var(--absent); color: #fff; }
+  #printArea { display: none; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    body > *:not(#printArea) { display: none !important; }
+    #printArea { display: block; }
+    #printArea img { display: block; width: 210mm; height: 297mm; }
+  }
   #more { margin: 4px auto 0; display: block; width: auto; padding: 10px 22px; font-size: 16px; }
 </style>
 </head>
@@ -108,6 +140,7 @@
         <select id="qWard" aria-label="वार्ड"><option value="">सभी वार्ड</option></select>
       </div>
     </div>
+    <button id="wardPdf" class="hidden" type="button"></button>
     <div id="count"></div>
   </header>
   <main>
@@ -115,11 +148,13 @@
     <button class="btn hidden" id="more" type="button">और दिखाएं</button>
   </main>
 </section>
+<div id="printArea"><img alt=""></div>
 
 <script>
 'use strict';
 const PS = 3, ZP = 35;                       // पंचायत समिति / जिला परिषद निर्वाचन क्षेत्र
-const POLL_TIME = 'मतदान समय : प्रातः 7 से सायं 5 बजे तक';
+const TIME = 'प्रातः 7 से सायं 5 बजे तक';
+const POLL_TIME = `मतदान समय : ${TIME}`;
 const WARDS = 11;
 const $ = (id) => document.getElementById(id);
 const store = {  // localStorage can be blocked (private mode); then the user just logs in each time
@@ -141,6 +176,8 @@ const MSG = {
   other_device: 'यह पासवर्ड किसी दूसरे फ़ोन पर खोला गया है, इसलिए यहाँ से लॉग आउट हो गया। एक पासवर्ड एक समय पर एक ही फ़ोन पर चलता है।',
   too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   slow_down: 'बहुत तेज़ खोज — एक मिनट रुककर कोशिश करें',
+  ward_limit: 'आज के वार्ड PDF पूरे हो गए — कल फिर कोशिश करें',
+  admin: 'यह सिर्फ़ एडमिन कर सकता है',
   offline: 'इंटरनेट नहीं है — इंटरनेट चालू करें',
   server: 'सर्वर में दिक्कत — थोड़ी देर बाद कोशिश करें',
 };
@@ -162,7 +199,9 @@ function signOut(msg) {
   $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = ''; $('count').textContent = '';
   showLock(msg);
 }
+let isAdmin = false;
 function showApp(name, admin) {
+  isAdmin = !!admin;
   $('who').textContent = name ? `उपयोगकर्ता: ${name}` : '';
   $('adminBtn').classList.toggle('hidden', !admin);
   $('lock').classList.add('hidden'); $('app').classList.remove('hidden');
@@ -198,12 +237,13 @@ function hint() {
 async function search(offset = 0) {
   const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value };
   $('count').classList.remove('bad');
+  wardButton();
   if (!q.name && !q.rel) { hint(); $('count').textContent = ''; $('more').classList.add('hidden'); return; }
   const mine = ++seq;
   if (!offset) $('count').textContent = 'खोज रहे हैं…';
   const r = await api('search', { ...q, offset, token: store.get('tok') });
   if (mine !== seq) return;                       // a newer search has started
-  if (['retired', 'login', 'logged_out', 'other_device'].includes(r.error)) return signOut(MSG[r.error]);
+  if (loggedOut(r)) return;
   if (r.error) { $('count').textContent = MSG[r.error] || MSG.server; $('count').classList.add('bad'); return; }
   last = q; total = r.total;
   if (!offset) { $('results').innerHTML = ''; shown = 0; }
@@ -215,12 +255,15 @@ async function search(offset = 0) {
   $('more').classList.toggle('hidden', !(shown < total && shown <= 200));   // server pages up to 250 results
 }
 
+const loggedOut = (r) => ['retired', 'login', 'logged_out', 'other_device'].includes(r.error) && (signOut(MSG[r.error]), true);
+
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function kv(label, value) { const f = document.createDocumentFragment(); f.append(label, el('b', null, value)); return f; }
 
 function slip(r) {
   const [bhag, ...rest] = String(r.kendra || '').split('-');
   const d = el('div', 'slip');
+  d.dataset.key = `${r.ward}:${r.box}`;
   const head = el('div', 'head');
   head.append(el('div'));
   const meta = el('div', 'meta');
@@ -242,9 +285,104 @@ function slip(r) {
   l2.append(p, ag);
 
   const k = el('div', 'kendra'); k.append('मतदान केन्द्र : ', el('b', null, bhag.trim()), ` - ${rest.join('-').trim()}`);
-  d.append(head, idl, l1, l2, k, el('div', 'time', POLL_TIME));
+  d.append(el('div', 'mark'), head, idl, l1, l2, k, el('div', 'time', POLL_TIME), actions(r, d));
+  showMark(d, r.mark);
   return d;
 }
+
+// ---------- status marks (admin sets them; everyone sees the bar) ----------
+const MARKS = { done: '✓ पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
+function showMark(d, m) {
+  if (MARKS[m]) d.dataset.mark = m; else delete d.dataset.mark;
+  d.querySelector('.mark').textContent = MARKS[m] || '';
+  d.querySelectorAll('.acts .m').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
+}
+async function setMark(r, d, m) {
+  const before = d.dataset.mark || '';
+  const status = before === m ? '' : m;           // tapping the lit button again removes the mark
+  showMark(d, status);
+  const res = await api('mark', { token: store.get('tok'), ward: r.ward, box: r.box, status });
+  if (res.error) { showMark(d, before); if (!loggedOut(res)) alert(MSG[res.error] || MSG.server); }
+}
+// marks set by the admin on another phone reach this one without a new search
+async function refreshMarks() {
+  const slips = [...document.querySelectorAll('.slip[data-key]')];
+  if (!slips.length || document.hidden || !store.get('tok')) return;
+  const r = await api('marks', { token: store.get('tok'), keys: slips.map((d) => d.dataset.key) });
+  if (loggedOut(r) || !r.marks) return;
+  for (const d of slips) if (d.dataset.key in r.marks) showMark(d, r.marks[d.dataset.key]);
+}
+setInterval(refreshMarks, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMarks(); });
+
+function actions(r, d) {
+  const a = el('div', 'acts');
+  const pr = el('button', null, '🖨 प्रिंट'); pr.type = 'button'; pr.onclick = () => oneSlip(r, 'print', pr);
+  const dl = el('button', null, '⬇ PDF'); dl.type = 'button'; dl.onclick = () => oneSlip(r, 'pdf', dl);
+  a.append(pr, dl);
+  if (isAdmin) {
+    a.append(el('span', 'sp'));
+    for (const m of Object.keys(MARKS)) {
+      const b = el('button', `m ${m}`, MARKS[m].replace('✓ ', '')); b.type = 'button'; b.dataset.m = m;
+      b.onclick = () => setMark(r, d, m);
+      a.append(b);
+    }
+  }
+  return a;
+}
+
+// ---------- printed slips (drawn like the paper slip by slips.js; jsPDF and fonts load on first use) ----------
+let slipLib = null;
+function loadScript(src) {
+  return new Promise((ok, fail) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
+}
+async function slipTools() {
+  slipLib ||= Promise.all([loadScript('lib/jspdf.umd.min.js'), loadScript('slips.js')]).then(() => Slips.loadFonts());
+  try { await slipLib; } catch (e) { slipLib = null; throw e; }
+}
+function slipMeta(ward, kendra) {
+  const [no, ...rest] = String(kendra || '').split('-');
+  return { ps: PS, zp: ZP, ward, bhag: no.trim(), kendraNo: no.trim(), kendraName: rest.join('-').trim(), time: TIME };
+}
+const slipVoter = (r) => ({ box: r.box, epic: r.epic, name: r.hname, relation: r.rel, relative: r.hrel, house: r.house, age: r.age, gender: r.sex });
+
+// one slip in the top-left corner of an A4 page: printed, or saved as a PDF
+async function oneSlip(r, how, btn) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'बन रही है…';
+  try {
+    await slipTools();
+    const page = Slips.single(slipVoter(r), slipMeta(r.ward, r.kendra));
+    if (how === 'pdf') Slips.singlePdf(page, `पर्ची-वार्ड-${r.ward}-बॉक्स-${r.box}.pdf`);
+    else {
+      const img = document.querySelector('#printArea img');
+      img.src = page.toDataURL('image/png');
+      await img.decode();
+      window.print();
+    }
+  } catch (e) { alert(MSG.offline); }
+  btn.disabled = false; btn.textContent = label;
+}
+
+// every slip of the chosen ward, 12 per A4 page
+function wardButton() {
+  const w = $('qWard').value;
+  $('wardPdf').classList.toggle('hidden', !w);
+  if (!$('wardPdf').disabled) $('wardPdf').textContent = `⬇ वार्ड ${w} की सभी पर्चियाँ (PDF)`;
+}
+$('wardPdf').addEventListener('click', async () => {
+  const w = $('qWard').value, b = $('wardPdf');
+  if (!w) return;
+  b.disabled = true; b.textContent = 'सूची ला रहे हैं…';
+  try {
+    const [r] = await Promise.all([api('ward', { token: store.get('tok'), ward: w }), slipTools()]);
+    if (loggedOut(r)) return;
+    if (r.error) { alert(MSG[r.error] || MSG.server); return; }
+    await Slips.savePdf(r.voters.map(slipVoter), slipMeta(r.ward, r.kendra), `आडसर-वार्ड-${r.ward}-मतदाता-पर्ची.pdf`,
+      (done, total) => { b.textContent = `PDF बन रही है… ${done}/${total} पेज`; });
+  } catch (e) { alert(MSG.offline); }
+  finally { b.disabled = false; wardButton(); }
+});
 
 let timer;
 for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => search(0), 300); });

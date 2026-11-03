@@ -52,6 +52,7 @@
   .badge.on { background: #dcfce7; color: var(--ok); }
   .badge.off { background: #fee2e2; color: var(--bad); }
   .badge.warn { background: #fef3c7; color: #92400e; }
+  .badge.info { background: #e0e7ff; color: #1f4e8c; }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .actions button { padding: 6px 10px; font-size: 13px; }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
@@ -210,6 +211,7 @@ function render() {
     const left = el('div');
     const nm = el('div', 'name', u.name); nm.append(el('span', `badge ${u.retired ? 'off' : 'on'}`, u.retired ? 'बंद' : 'चालू'));
     if (u.kicks) nm.append(el('span', 'badge warn', `एक साथ दो फ़ोन: ${u.kicks} बार`));
+    if (u.wardPdfs) nm.append(el('span', 'badge info', `वार्ड PDF: ${u.wardPdfs}`));
     const info = el('div', 'info', `बनाया: ${fmt(u.created)} · आखिरी इस्तेमाल: ${fmt(u.lastSeen)}` + (u.retired ? ` · बंद किया: ${fmt(u.retiredAt)}` : ''));
     const sess = el('div', 'info', u.loggedIn
       ? `अभी लॉगिन: ${u.sessionDevice || '—'} · IP ${u.sessionIp || '—'} · ${fmt(u.sessionAt)} से`

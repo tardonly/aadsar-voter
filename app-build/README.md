@@ -31,9 +31,18 @@ opened on another phone while the first was still in use (used in the last 30 mi
 The admin password can be used on several devices.
 Changing `ADMIN_PASSWORD` in Vercel (and redeploying) signs out every admin session.
 
+**Status marks:** logged in as admin, each slip has three buttons: **पूरा हुआ** (green), **आ रहे हैं** (yellow),
+**उपलब्ध नहीं** (red). Tap the lit one again to remove the mark. Everyone sees the coloured bar on that slip; open
+phones pick up new marks within a minute or when the app is opened again. Marks are kept in Redis (`marks`).
+
 ## Phones (Android or iPhone)
 Open the link, enter the password, keep "इस फ़ोन पर याद रखें" ticked. Optional: add to home screen
 (Android ⋮ → Add to Home screen, iPhone Share → Add to Home Screen). Needs internet every time.
+
+**Slips:** every slip has **प्रिंट** and **PDF**: an A4 page with that one slip in the top-left corner, at the same
+size as on a full sheet, with cut lines. After choosing a ward, **वार्ड N की सभी पर्चियाँ (PDF)** saves every slip of
+the ward, 12 per A4 page. Each person can download at most 25 ward PDFs a day; the admin list shows a blue
+**वार्ड PDF: N** count per person (the admin has no limit).
 
 ## Updating the voter data
 ```

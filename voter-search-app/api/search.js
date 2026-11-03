@@ -1,7 +1,7 @@
-// POST {token, name, rel, ward, offset} → {total, offset, results: [...up to 50 voters], wards}
+// POST {token, name, rel, ward, offset} → {total, offset, results: [...up to 50 voters, each with its status mark], wards}
 // Every search checks that the password behind the token is still active and that this phone holds its newest
 // session, so retiring or logging in on another phone takes effect at once.
-const { redis, whoIs, send, route } = require('./_lib.js');
+const { redis, whoIs, markKey, marksFor, send, route } = require('./_lib.js');
 const { load, search, publicFields } = require('./_search.js');
 
 const PAGE = 50, MAX_OFFSET = 200, PER_MINUTE = 120;
@@ -18,9 +18,8 @@ module.exports = route(async (req, res, b) => {
 
   const hits = search(b);
   const offset = Math.min(Math.max(0, parseInt(b.offset, 10) || 0), MAX_OFFSET);
-  send(res, 200, {
-    total: hits.length, offset, page: PAGE,
-    results: hits.slice(offset, offset + PAGE).map(publicFields),
-    wards: load().wards,
-  });
+  const results = hits.slice(offset, offset + PAGE).map(publicFields);
+  const marks = await marksFor(results.map(markKey));
+  results.forEach((r, i) => { r.mark = marks[i]; });
+  send(res, 200, { total: hits.length, offset, page: PAGE, results, wards: load().wards });
 });

@@ -122,5 +122,14 @@ async function whoIs(token) {
   return user;
 }
 
-module.exports = { redis, dataKey, pwHash, newSession, makeToken, parseToken, sameText, isAdminPassword, adminToken, isAdminToken,
+// Status marks the admin puts on voters, kept in one Redis hash "marks": field "<ward>:<box>", value "<status>|<time>".
+const MARKS = ['done', 'coming', 'absent'];   // green: done · yellow: on the way · red: not available
+const markKey = (v) => `${parseInt(v.ward, 10)}:${parseInt(v.box, 10)}`;
+async function marksFor(keys) {
+  if (!keys.length) return [];
+  const vals = (await redis('HMGET', 'marks', ...keys)) || [];
+  return keys.map((k, i) => (vals[i] ? String(vals[i]).split('|')[0] : ''));
+}
+
+module.exports = { redis, MARKS, markKey, marksFor, dataKey, pwHash, newSession, makeToken, parseToken, sameText, isAdminPassword, adminToken, isAdminToken,
   whoIs, newPassword, getUser, clientIp, deviceName, blocked, failed, send, route };
