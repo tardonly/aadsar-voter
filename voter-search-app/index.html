@@ -70,7 +70,9 @@
 
   /* voter slip, modelled on the printed slip */
   .slip { background: var(--card); border: 1.5px solid #222; margin: 0 0 12px; font-size: 15px; }
-  .slip .head { display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 6px 8px 0; }
+  .slip .head { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 8px; padding: 6px 8px 0; }
+  .slip .pp { justify-self: start; padding: 4px 10px; font-size: 13.5px; font-weight: 600; color: var(--accent);
+    background: #fff; border: 1.5px solid var(--line); border-radius: 8px; }
   .slip .meta { font-size: 12.5px; text-align: right; line-height: 1.5; white-space: nowrap; }
   .slip .meta span + span { margin-left: 12px; }
   .slip .idline { display: flex; align-items: center; gap: 10px; padding: 2px 8px 4px; }
@@ -93,9 +95,8 @@
   .slip[data-mark=done] { border-color: var(--done); } .slip[data-mark=done] .mark { background: var(--done); }
   .slip[data-mark=coming] { border-color: #ca8a04; } .slip[data-mark=coming] .mark { background: var(--coming); color: #422006; }
   .slip[data-mark=absent] { border-color: var(--absent); } .slip[data-mark=absent] .mark { background: var(--absent); }
-  .slip .acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border-top: 1px dashed var(--line); background: #fafafa; }
-  .slip .acts button { padding: 5px 10px; font-size: 13.5px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
-  .slip .acts .sp { flex: 1; }
+  .slip .acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px; border-top: 1px dashed var(--line); background: #fafafa; }
+  .slip .acts button { padding: 8px 4px; font-size: 15px; border: 1.5px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
   .slip .acts .m { font-weight: 600; }
   .slip .acts .m.done { border-color: var(--done); color: var(--done); }
   .slip .acts .m.coming { border-color: #ca8a04; color: #854d0e; }
@@ -275,7 +276,9 @@ function slip(r) {
   const d = el('div', 'slip');
   d.dataset.key = `${r.ward}:${r.box}`;
   const head = el('div', 'head');
-  head.append(el('div'));
+  const pp = el('button', 'pp', 'प्रिंट / PDF'); pp.type = 'button';
+  pp.onclick = () => oneSlip(r, navigator.standalone ? 'pdf' : 'print', pp);   // iPhone home-screen apps can't print: save the PDF
+  head.append(pp);
   const meta = el('div', 'meta');
   const m1 = el('div'); m1.append(el('span', null, `पं.सं. ${PS}`), el('span', null, `जि.प. ${ZP}`));
   const m2 = el('div'); m2.append(el('span', null, `वार्ड नं. : ${r.ward}`), el('span', null, `भाग सं. ${bhag.trim()}`));
@@ -295,7 +298,8 @@ function slip(r) {
   l2.append(p, ag);
 
   const k = el('div', 'kendra'); k.append('मतदान केन्द्र : ', el('b', null, bhag.trim()), ` - ${rest.join('-').trim()}`);
-  d.append(el('div', 'mark'), head, idl, l1, l2, k, el('div', 'time', POLL_TIME), actions(r, d));
+  d.append(el('div', 'mark'), head, idl, l1, l2, k, el('div', 'time', POLL_TIME));
+  if (isAdmin) d.append(markButtons(r, d));
   showMark(d, r.mark);
   return d;
 }
@@ -325,18 +329,12 @@ async function refreshMarks() {
 setInterval(refreshMarks, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMarks(); });
 
-function actions(r, d) {
+function markButtons(r, d) {
   const a = el('div', 'acts');
-  const pr = el('button', null, '🖨 प्रिंट'); pr.type = 'button'; pr.onclick = () => oneSlip(r, 'print', pr);
-  const dl = el('button', null, '⬇ PDF'); dl.type = 'button'; dl.onclick = () => oneSlip(r, 'pdf', dl);
-  a.append(pr, dl);
-  if (isAdmin) {
-    a.append(el('span', 'sp'));
-    for (const m of Object.keys(MARKS)) {
-      const b = el('button', `m ${m}`, MARKS[m].replace('✓ ', '')); b.type = 'button'; b.dataset.m = m;
-      b.onclick = () => setMark(r, d, m);
-      a.append(b);
-    }
+  for (const m of Object.keys(MARKS)) {
+    const b = el('button', `m ${m}`, MARKS[m].replace('✓ ', '')); b.type = 'button'; b.dataset.m = m;
+    b.onclick = () => setMark(r, d, m);
+    a.append(b);
   }
   return a;
 }
