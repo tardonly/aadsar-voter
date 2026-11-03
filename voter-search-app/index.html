@@ -57,7 +57,8 @@
   .fields { display: grid; gap: 6px; }
   .fields input, .fields select { width: 100%; padding: 10px 12px; font-size: 17px; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; }
   .fields input:focus, .fields select:focus { outline: none; border-color: var(--accent); }
-  .row2 { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+  .row2 { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
+  #reset { padding: 0 12px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--bad); }
   .row2 select { width: auto; }
   #count { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 18px; }
   #count.bad { color: var(--bad); }
@@ -146,6 +147,7 @@
       <div class="row2">
         <input id="qRel" type="search" placeholder="पिता / पति का नाम" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search">
         <select id="qWard" aria-label="वार्ड"><option value="">सभी वार्ड</option></select>
+        <button id="reset" class="hidden" type="button" aria-label="खोज साफ़ करें">✕ साफ़</button>
       </div>
     </div>
     <button id="wardPdf" class="hidden" type="button"></button>
@@ -247,7 +249,9 @@ async function search(offset = 0) {
   const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value };
   $('count').classList.remove('bad');
   wardButton();
-  if (!q.name && !q.rel && !q.ward) { hint(); $('count').textContent = ''; $('more').classList.add('hidden'); return; }
+  $('reset').classList.toggle('hidden', !(q.name || q.rel || q.ward));
+  if (!q.name && !q.rel && !q.ward) { ++seq; hint();   // ++seq: a search still on its way is dropped
+    $('count').textContent = ''; $('more').classList.add('hidden'); return; }
   const mine = ++seq;
   if (!offset) $('count').textContent = 'खोज रहे हैं…';
   const r = await api('search', { ...q, offset, token: store.get('tok') });
@@ -397,6 +401,12 @@ let timer;
 for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => search(0), 300); });
 $('qWard').addEventListener('change', () => search(0));
 $('more').addEventListener('click', () => search(shown));
+// one tap empties both names and the ward, back to the start
+$('reset').addEventListener('click', () => {
+  clearTimeout(timer);
+  $('qName').value = ''; $('qRel').value = ''; $('qWard').value = '';
+  search(0); scrollTo(0, 0);
+});
 
 // ---------- open straight into search if this phone is remembered, after checking the password is still active ----------
 (async () => {
