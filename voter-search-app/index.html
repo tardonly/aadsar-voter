@@ -31,8 +31,8 @@
   .hidden { display: none !important; }
 
   /* lock screen */
-  #lock { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; }
-  .lockbox { width: 100%; max-width: 380px; background: var(--card); border-radius: 14px; padding: 24px 20px;
+  #lock { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 16px 8px; }
+  .lockbox { margin: auto 0; width: 100%; max-width: 380px; background: var(--card); border-radius: 14px; padding: 24px 20px;
     box-shadow: 0 2px 12px rgba(0,0,0,.08); text-align: center; }
   .lockbox img { width: 72px; height: 72px; border-radius: 16px; }
   .lockbox h1 { font-size: 22px; margin: 12px 0 2px; }
@@ -64,7 +64,8 @@
   #wardPdf { margin-top: 6px; width: 100%; padding: 8px 10px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--accent);
     border-radius: 10px; background: #fff; color: var(--accent); }
   #wardPdf:disabled { opacity: .7; }
-  main { padding: 10px 10px 24px; max-width: 640px; margin: 0 auto; }
+  #app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+  main { flex: 1; width: 100%; padding: 10px 10px 24px; max-width: 640px; margin: 0 auto; }
   .hint { color: var(--muted); font-size: 14px; line-height: 1.6; padding: 8px 6px; }
 
   /* voter slip, modelled on the printed slip */
@@ -111,7 +112,7 @@
   }
   #more { margin: 4px auto 0; display: block; width: auto; padding: 10px 22px; font-size: 16px; }
   /* "Powered by DigyAi" footer */
-  .powered { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 18px auto 4px; width: fit-content;
+  .powered { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 auto; padding: 8px 0 calc(10px + env(safe-area-inset-bottom)); width: fit-content;
     font-size: 12.5px; color: var(--muted); text-decoration: none; }
   .powered img { width: 20px; height: 20px; border-radius: 5px; }
   .powered b { color: var(--ink); font-weight: 600; }
@@ -152,8 +153,8 @@
   <main>
     <div id="results"></div>
     <button class="btn hidden" id="more" type="button">और दिखाएं</button>
-    <a class="powered" href="https://digyai.com" target="_blank" rel="noopener">Powered by <img src="digyai-logo.png" alt=""><b>DigyAi</b></a>
   </main>
+  <a class="powered" href="https://digyai.com" target="_blank" rel="noopener">Powered by <img src="digyai-logo.png" alt=""><b>DigyAi</b></a>
 </section>
 <div id="printArea"><img alt=""></div>
 
