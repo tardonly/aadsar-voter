@@ -92,6 +92,8 @@
 <body>
 <div class="wrap">
 
+  <section id="opening" class="card hidden"><p class="sub" style="margin:0">खुल रहा है…</p></section>
+
   <section id="login" class="card">
     <h1>एडमिन लॉगिन</h1>
     <p class="sub">मतदाता खोज · पासवर्ड बनाएं और बंद करें</p>
@@ -203,10 +205,18 @@ $('logout').addEventListener('click', () => {
 });
 (async () => {
   if (!token) return;
+  // logged into the app as admin: open straight away (the password form shows only if that session no longer works)
+  $('login').classList.add('hidden'); $('opening').classList.remove('hidden');
   const r = await api({ action: 'list' });
-  if (r.error) { token = null; return; }
+  $('opening').classList.add('hidden');
+  if (r.error) {
+    if (r.error === 'wrong') token = null;   // the admin password was changed: log in again
+    $('login').classList.remove('hidden');
+    $('loginMsg').textContent = r.error === 'wrong' ? 'दोबारा लॉगिन करें' : errText(r);
+    return;
+  }
   showList(r);
-  $('login').classList.add('hidden'); $('panel').classList.remove('hidden');
+  $('panel').classList.remove('hidden');
 })();
 
 async function refresh() {
