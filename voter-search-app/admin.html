@@ -109,15 +109,6 @@
       <span class="row"><a class="btn ghost" href="./" style="text-decoration:none">← खोज</a><button class="btn ghost" id="logout" type="button">लॉग आउट</button></span></div>
 
     <div class="card">
-      <div class="bar2"><h2>वार्ड अनुसार प्रगति</h2><button class="btn ghost" id="reload" type="button">ताज़ा करें</button></div>
-      <table class="prog">
-        <thead><tr><th>वार्ड</th><th>कुल</th><th class="c-done">✓ पूरा</th><th class="c-coming">आ रहे</th><th class="c-absent">नहीं</th><th>बाकी</th></tr></thead>
-        <tbody id="prog"></tbody>
-      </table>
-      <div class="foot" id="progFoot"></div>
-    </div>
-
-    <div class="card">
       <h2>नया व्यक्ति जोड़ें</h2>
       <form id="addForm" class="stack" autocomplete="off">
         <input id="newName" type="text" placeholder="व्यक्ति का नाम (जैसे रमेश, बूथ 54)" maxlength="60" required>
@@ -158,6 +149,15 @@
       <button class="btn ghost full" id="clearAll" type="button">सभी निशान हटाएं</button>
       <button class="btn ghost full hidden" id="restore" type="button"></button>
       <div class="msg" id="marksMsg"></div>
+    </div>
+
+    <div class="card">
+      <div class="bar2"><h2>वार्ड अनुसार प्रगति</h2><button class="btn ghost" id="reload" type="button">ताज़ा करें</button></div>
+      <table class="prog">
+        <thead><tr><th>वार्ड</th><th>कुल</th><th class="c-done">✓ पूरा</th><th class="c-coming">आ रहे</th><th class="c-absent">नहीं</th><th>बाकी</th></tr></thead>
+        <tbody id="prog"></tbody>
+      </table>
+      <div class="foot" id="progFoot"></div>
     </div>
   </section>
 

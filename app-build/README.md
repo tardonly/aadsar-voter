@@ -31,7 +31,7 @@ Open the app, log in with the **admin password** → an **एडमिन** butt
 - Each person shows **आज N खोज** (searches today) and how many slips carry a mark they set. 500 or more searches in a
   day gets a yellow badge: a sign the list is being copied.
 
-**वार्ड अनुसार प्रगति** (top of the admin page): per ward, how many voters there are and how many slips are marked
+**वार्ड अनुसार प्रगति** (bottom of the admin page): per ward, how many voters there are and how many slips are marked
 पूरा / आ रहे / नहीं, with what is left (बाकी) and a coloured bar. It refreshes itself every minute.
 
 **One phone at a time:** each login gets its own session code. If the same password is opened on a second phone,
