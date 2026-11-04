@@ -6,7 +6,7 @@
 //   action "retire", id          → {ok}               (password stops working; the phone is logged out at once)
 //   action "logout", id          → {ok}               (ends the person's current session; they can log in again)
 //   action "phone", id, phone    → {user}             (add or change the person's WhatsApp number; "" removes it)
-//   action "perms", id, perms    → {user}             (what the person may do: any of 'mark', 'ward', 'wardPdf', 'print')
+//   action "perms", id, perms    → {user}             (what the person may do: any of 'mark', 'lists', 'ward', 'wardPdf', 'print')
 //   action "clearMarks", status → {marks}            (removes every 'done' | 'coming' | 'absent' mark, or 'all' of them;
 //                                                      the removed marks are kept as a backup first)
 //   action "restoreMarks"       → {marks}            (puts back the marks removed by the last clearMarks)

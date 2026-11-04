@@ -19,19 +19,22 @@ The `.gitignore` lets only `voter-search-app/` and three files from `app-build/`
 
 ## Admin
 Open the app, log in with the **admin password** → an **एडमिन** button appears (or open `/admin.html`).
+The admin page has three tabs: **लोग** (add people, passwords, permissions), **निशान** (clear or restore marks) and
+**प्रगति** (progress per ward). It reopens on the tab used last.
 - **नया व्यक्ति जोड़ें:** type the person's name → you get their password once → Copy or send by WhatsApp.
 - **बंद करें:** that password stops working; the person is logged out on their next search.
 - **नया पासवर्ड:** new password for the same person (e.g. they forgot it); the old one stops working.
 - **लॉग आउट करें:** ends the person's current session; they can log in again with the same password.
 - **Permissions** (tick boxes under each person; they take effect on that person's next search, or within a minute):
-  **निशान लगा सकते हैं** (set status marks) · **पूरा वार्ड देख सकते हैं** (choose a ward with no name and see the whole
+  **निशान लगा सकते हैं** (set status marks) · **पूरा हुआ / आ रहे / नहीं की सूची** (the status lists, see below) ·
+  **पूरा वार्ड देख सकते हैं** (choose a ward with no name and see the whole
   ward) · **वार्ड की PDF** (whole-ward slip PDF) · **पर्ची प्रिंट** (the प्रिंट / PDF button on a slip; this only hides the
   button, a screenshot is still possible). New people, and people added before permissions existed, start with only
   पर्ची प्रिंट. Without पूरा वार्ड देख सकते हैं a person can still search by name, father's name, box number or Voter ID.
 - Each person shows **आज N खोज** (searches today) and how many slips carry a mark they set. 500 or more searches in a
   day gets a yellow badge: a sign the list is being copied.
 
-**वार्ड अनुसार प्रगति** (bottom of the admin page): per ward, how many voters there are and how many slips are marked
+**वार्ड अनुसार प्रगति** (प्रगति tab): per ward, how many voters there are and how many slips are marked
 पूरा / आ रहे / नहीं, with what is left (बाकी) and a coloured bar. It refreshes itself every minute.
 
 **One phone at a time:** each login gets its own session code. If the same password is opened on a second phone,
@@ -54,8 +57,13 @@ Open the link, enter the password, keep "इस फ़ोन पर याद �
 
 **Whole ward:** choose a ward and leave the name boxes empty → every voter of that ward in box order, 10 at a
 time (**और दिखाएं** for the next 10). Only for the admin and people allowed पूरा वार्ड देख सकते हैं.
-Choosing a ward also shows a filter: सभी / **सिर्फ़ बिना निशान वाले** / पूरा हुआ / आ रहे हैं / उपलब्ध नहीं. Going
-through the unmarked list and marking slips doesn't skip anyone on the next page.
+
+**Status lists:** coloured buttons under the search boxes, each with how many voters carry that mark: **✓ पूरा हुआ**,
+**आ रहे हैं**, **उपलब्ध नहीं**, and **बाकी** (no mark yet). Tap one to list those voters, in the chosen ward or, with
+सभी वार्ड, in every ward (by ward and box); tap it again to go back. पूरा हुआ / आ रहे हैं / उपलब्ध नहीं are for the admin
+and people allowed पूरा हुआ / आ रहे / नहीं की सूची (or, inside a ward, पूरा वार्ड देख सकते हैं); बाकी needs a ward and
+पूरा वार्ड देख सकते हैं. Marking slips while going through a list doesn't skip anyone on the next page, and the numbers
+on the buttons update at once.
 
 **Box number:** type `25` with a ward chosen, or `3/25` for ward 3 box 25 from any ward.
 **परिवार:** the button on a slip opens everyone else at the same house number in that ward, as full slips.

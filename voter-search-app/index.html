@@ -60,7 +60,15 @@
   .row2 { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
   #reset { padding: 0 12px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--bad); }
   .row2 select { width: auto; }
-  #qMark { font-size: 15px; padding: 8px 10px; }
+  /* status lists: ✓ पूरा हुआ · आ रहे हैं · उपलब्ध नहीं · बाकी, with how many in each */
+  .mtabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 6px; }
+  .mtabs.three { grid-template-columns: repeat(3, 1fr); }
+  .mtabs button { padding: 4px 2px; font-size: 13px; font-weight: 600; line-height: 1.3; border: 1.5px solid; border-radius: 9px; background: #fff; }
+  .mtabs button b { display: block; font-size: 16px; min-height: 1.3em; }
+  .mtabs .done { border-color: var(--done); color: #15803d; } .mtabs .done.on { background: var(--done); color: #fff; }
+  .mtabs .coming { border-color: #ca8a04; color: #854d0e; } .mtabs .coming.on { background: var(--coming); color: #422006; }
+  .mtabs .absent { border-color: var(--absent); color: var(--absent); } .mtabs .absent.on { background: var(--absent); color: #fff; }
+  .mtabs .none { border-color: #9ca3af; color: #374151; } .mtabs .none.on { background: #4b5563; color: #fff; }
   #bigBtn { font-weight: 700; color: var(--ink); }
   #bigBtn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
   #count { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 18px; }
@@ -163,13 +171,12 @@
         <select id="qWard" aria-label="वार्ड"><option value="">सभी वार्ड</option></select>
         <button id="reset" class="hidden" type="button" aria-label="खोज साफ़ करें">✕ साफ़</button>
       </div>
-      <select id="qMark" class="hidden" aria-label="निशान से छाँटें">
-        <option value="">सभी मतदाता (निशान कोई भी)</option>
-        <option value="none">सिर्फ़ बिना निशान वाले</option>
-        <option value="done">सिर्फ़ ✓ पूरा हुआ</option>
-        <option value="coming">सिर्फ़ आ रहे हैं</option>
-        <option value="absent">सिर्फ़ उपलब्ध नहीं</option>
-      </select>
+      <div id="qMark" class="mtabs hidden" role="group" aria-label="निशान वाली सूची">
+        <button type="button" class="done" data-m="done" aria-pressed="false">✓ पूरा हुआ<b></b></button>
+        <button type="button" class="coming" data-m="coming" aria-pressed="false">आ रहे हैं<b></b></button>
+        <button type="button" class="absent" data-m="absent" aria-pressed="false">उपलब्ध नहीं<b></b></button>
+        <button type="button" class="none" data-m="none" aria-pressed="false">बाकी<b></b></button>
+      </div>
     </div>
     <button id="wardPdf" class="hidden" type="button"></button>
     <div id="count"></div>
@@ -211,6 +218,7 @@ const MSG = {
   admin: 'यह सिर्फ़ एडमिन कर सकता है',
   no_ward: 'पूरे वार्ड की सूची देखने की अनुमति नहीं है — नाम, पिता/पति का नाम या बॉक्स नंबर लिखें',
   no_mark: 'आपको निशान लगाने की अनुमति नहीं है',
+  no_lists: 'आपको निशान वाली सूची देखने की अनुमति नहीं है',
   no_pdf: 'आपको पूरे वार्ड की PDF की अनुमति नहीं है',
   offline: 'इंटरनेट नहीं है — इंटरनेट चालू करें',
   server: 'सर्वर में दिक्कत — थोड़ी देर बाद कोशिश करें',
@@ -230,7 +238,7 @@ function showLock(msg, info) {
 }
 function signOut(msg) {
   store.del('tok'); store.del('who');
-  $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; $('qMark').value = ''; $('count').textContent = '';
+  $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; markFilter = ''; $('count').textContent = '';
   showLock(msg);
 }
 let isAdmin = false, perms = [];
@@ -263,45 +271,65 @@ $('lockBtn').addEventListener('click', () => {
 });
 
 // ---------- search ----------
-let seq = 0, shown = 0, total = 0, lastBox = 0;
+let seq = 0, shown = 0, total = 0, lastKey = 0, markFilter = '', counts = null;
 function hint() {
   $('results').innerHTML = '<div class="hint">नाम या पिता/पति का नाम हिंदी या English में लिखें।<br>' +
     'गलत स्पेलिंग भी चलेगी, जैसे <b>bhanvarlal</b>, <b>mangi lal</b>, <b>मांगीलाल</b>।<br>' +
     'बॉक्स नंबर (जैसे <b>25</b>, वार्ड चुनकर, या <b>3/25</b> = वार्ड 3 का बॉक्स 25) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।' +
-    (can('ward') ? '<br>सिर्फ़ वार्ड चुनें तो उस वार्ड के सभी मतदाता बॉक्स क्रम में दिखेंगे।' : '') + '</div>';
+    (can('ward') ? '<br>सिर्फ़ वार्ड चुनें तो उस वार्ड के सभी मतदाता बॉक्स क्रम में दिखेंगे।' : '') +
+    (can('lists') ? '<br>ऊपर के रंगीन बटन से पूरा हुआ / आ रहे हैं / उपलब्ध नहीं वाले सभी मतदाता देखें (वार्ड चुनें तो उसी वार्ड के)।' : '') + '</div>';
 }
-const FILTER = { none: 'बिना निशान वाले', done: '✓ पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
+const FILTER = { none: 'बाकी (बिना निशान)', done: '✓ पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
+// the status buttons: shown to people allowed the lists, or the whole ward (बाकी needs a ward and the whole-ward permission)
+function markTabs(ward) {
+  const status = can('lists') || (ward && can('ward')), rest = !!ward && can('ward');
+  if (markFilter === 'none' ? !rest : markFilter && !status) markFilter = '';
+  $('qMark').classList.toggle('hidden', !status);
+  $('qMark').classList.toggle('three', !rest);
+  $('qMark').querySelector('.none').classList.toggle('hidden', !rest);
+  $('qMark').querySelectorAll('button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.m === markFilter); b.setAttribute('aria-pressed', b.dataset.m === markFilter);
+    b.querySelector('b').textContent = counts && b.dataset.m in counts ? counts[b.dataset.m] : '';
+  });
+  return status;
+}
 async function search(more = false) {
-  const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value, mark: $('qMark').value };
+  const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value };
   const named = !!(q.name || q.rel);
+  const wantCounts = markTabs(q.ward);
+  q.mark = markFilter;
   $('count').classList.remove('bad');
   wardButton();
-  $('qMark').classList.toggle('hidden', !q.ward);
-  if (!q.ward) q.mark = '';
-  $('reset').classList.toggle('hidden', !(named || q.ward));
-  if (!named && !q.ward) { ++seq; hint();   // ++seq: a search still on its way is dropped
-    $('count').textContent = ''; $('more').classList.add('hidden'); return; }
-  if (!named && !can('ward')) { ++seq; $('results').innerHTML = '';
-    $('count').textContent = MSG.no_ward; $('more').classList.add('hidden'); return; }
-  const mine = ++seq;
+  $('reset').classList.toggle('hidden', !(named || q.ward || q.mark));
+  const mine = ++seq;                             // a search still on its way is dropped
+  if (!named && !q.ward && !q.mark) {
+    hint(); $('count').textContent = ''; $('more').classList.add('hidden'); shown = 0;
+    if (wantCounts) { const r = await api('search', { counts: 1, token: store.get('tok') }); if (mine === seq && r.counts) { counts = r.counts; markTabs(''); } }
+    return;
+  }
+  if (!named && !can('ward') && (!q.mark || q.mark === 'none')) { $('results').innerHTML = '';
+    $('count').textContent = MSG.no_ward; $('more').classList.add('hidden'); shown = 0; return; }
   if (!more) $('count').textContent = 'खोज रहे हैं…';
-  // a whole ward pages on from the last box shown, so slips marked meanwhile don't shift the list
-  const r = await api('search', { ...q, offset: more ? shown : 0, after: more ? lastBox : 0, token: store.get('tok') });
+  // lists without a name page on from the last slip shown, so slips marked meanwhile don't shift the list
+  const r = await api('search', { ...q, offset: more ? shown : 0, after: more ? lastKey : 0, counts: wantCounts ? 1 : 0, token: store.get('tok') });
   if (mine !== seq) return;                       // a newer search has started
   if (loggedOut(r)) return;
   if (r.error) { $('count').textContent = MSG[r.error] || MSG.server; $('count').classList.add('bad'); return; }
   if (r.perms) updatePerms(r.perms);
+  if (r.counts) { counts = r.counts; markTabs(q.ward); }
   total = r.total;
   if (!more) { $('results').innerHTML = ''; shown = 0; }
   const frag = document.createDocumentFragment();
   for (const v of r.results) frag.appendChild(slip(v));
   $('results').appendChild(frag);
   shown += r.results.length;
-  if (r.results.length) lastBox = r.results[r.results.length - 1].box;
+  const lastV = r.results[r.results.length - 1];
+  if (lastV) lastKey = lastV.ward * 10000 + lastV.box;
   const which = q.mark ? `${FILTER[q.mark]} ` : '';
-  const found = named ? `${total} ${which}मतदाता मिले` : `वार्ड ${q.ward} · ${q.mark ? which : 'सभी '}${total} मतदाता, बॉक्स क्रम में`;
+  const where = q.ward ? `वार्ड ${q.ward}` : 'सभी वार्ड';
+  const found = named ? `${total} ${which}मतदाता मिले` : `${where} · ${q.mark ? which : 'सभी '}${total} मतदाता, ${q.ward ? '' : 'वार्ड और '}बॉक्स क्रम में`;
   $('count').textContent = total ? found + (total > shown ? ` · ${shown} दिखाए` : '')
-    : q.mark ? `वार्ड ${q.ward} में ${which}कोई मतदाता नहीं` : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
+    : q.mark ? `${where} में ${which}कोई मतदाता नहीं` : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
   $('more').classList.toggle('hidden', !r.more);
 }
 
@@ -397,6 +425,9 @@ async function setMark(r, d, m) {
   if (res.error) { showMark(d, ...before); if (!loggedOut(res)) alert(MSG[res.error] || MSG.server); return; }
   d.dataset.by = res.by; d.dataset.at = res.at;
   showMark(d, status, res.by, res.at);
+  // keep the numbers on the status buttons right without asking the server
+  const w = $('qWard').value;
+  if (counts && (!w || +w === r.ward)) { counts[before[0] || 'none']--; counts[status || 'none']++; markTabs(w); }
 }
 // marks set on another phone reach this one without a new search
 async function refreshMarks() {
@@ -483,12 +514,15 @@ $('wardPdf').addEventListener('click', async () => {
 let timer;
 for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => search(), 300); });
 $('qWard').addEventListener('change', () => search());
-$('qMark').addEventListener('change', () => search());
+$('qMark').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+  markFilter = markFilter === b.dataset.m ? '' : b.dataset.m;   // tap the lit one again to go back
+  search(); scrollTo(0, 0);
+}));
 $('more').addEventListener('click', () => search(true));
 // one tap empties both names, the ward and the mark filter, back to the start
 $('reset').addEventListener('click', () => {
   clearTimeout(timer);
-  $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; $('qMark').value = '';
+  $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; markFilter = '';
   search(); scrollTo(0, 0);
 });
 // bigger text, remembered on this phone

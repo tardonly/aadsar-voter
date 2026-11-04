@@ -37,6 +37,11 @@
   .phone { font-size: 13.5px; margin-top: 2px; }
   .phone button { margin-left: 8px; padding: 2px 8px; font-size: 12.5px; border-radius: 6px; border: 1px solid var(--line); background: #fff; color: var(--accent); }
   .msg { min-height: 20px; margin-top: 8px; font-size: 14px; color: var(--bad); }
+  /* horizontal tabs: लोग · निशान · प्रगति */
+  .tabs { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px;
+    margin: 0 0 14px; background: #e5e7eb; border-radius: 12px; }
+  .tabs button { padding: 9px 4px; font-size: 15.5px; font-weight: 600; border: 0; border-radius: 9px; background: transparent; color: var(--muted); }
+  .tabs button.on { background: var(--card); color: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
   .bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .bar button { padding: 6px 12px; font-size: 14px; }
   .newpw { margin-top: 12px; padding: 14px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
@@ -107,7 +112,13 @@
   <section id="panel" class="hidden">
     <div class="bar"><h1>एडमिन</h1>
       <span class="row"><a class="btn ghost" href="./" style="text-decoration:none">← खोज</a><button class="btn ghost" id="logout" type="button">लॉग आउट</button></span></div>
+    <nav class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="people" class="on">लोग</button>
+      <button type="button" role="tab" data-tab="marks">निशान</button>
+      <button type="button" role="tab" data-tab="progress">प्रगति</button>
+    </nav>
 
+    <div class="tab" data-tab="people">
     <div class="card">
       <h2>नया व्यक्ति जोड़ें</h2>
       <form id="addForm" class="stack" autocomplete="off">
@@ -137,7 +148,9 @@
       <div id="list"></div>
       <div class="msg" id="listMsg"></div>
     </div>
+    </div>
 
+    <div class="tab hidden" data-tab="marks">
     <div class="card">
       <h2>पर्चियों के निशान हटाएं</h2>
       <p class="sub">बटन दबाने पर उस रंग के सभी निशान सबके फ़ोन से हट जाएंगे।</p>
@@ -150,7 +163,9 @@
       <button class="btn ghost full hidden" id="restore" type="button"></button>
       <div class="msg" id="marksMsg"></div>
     </div>
+    </div>
 
+    <div class="tab hidden" data-tab="progress">
     <div class="card">
       <div class="bar2"><h2>वार्ड अनुसार प्रगति</h2><button class="btn ghost" id="reload" type="button">ताज़ा करें</button></div>
       <table class="prog">
@@ -158,6 +173,7 @@
         <tbody id="prog"></tbody>
       </table>
       <div class="foot" id="progFoot"></div>
+    </div>
     </div>
   </section>
 
@@ -229,6 +245,15 @@ function showList(r) {
   $('progFoot').textContent = `एडमिन ने ${r.adminMarked || 0} पर्चियों पर निशान लगाए · हर मिनट अपने-आप ताज़ा होता है`;
 }
 $('reload').addEventListener('click', refresh);
+// tabs; the last one chosen is remembered on this device
+function showTab(name) {
+  if (!document.querySelector(`.tab[data-tab="${name}"]`)) name = 'people';
+  document.querySelectorAll('.tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === name); b.setAttribute('aria-selected', b.dataset.tab === name); });
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('hidden', t.dataset.tab !== name));
+  try { localStorage.setItem('adminTab', name); } catch (e) {}
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => { showTab(b.dataset.tab); scrollTo(0, 0); }));
+try { showTab(localStorage.getItem('adminTab') || 'people'); } catch (e) { showTab('people'); }
 // polling day: keep the numbers fresh while the page is open
 setInterval(() => { if (!document.hidden && !$('panel').classList.contains('hidden')) refresh(); }, 60000);
 
@@ -319,7 +344,8 @@ document.querySelectorAll('.filter button').forEach((b) => b.addEventListener('c
 }));
 
 // what each person may do besides searching by name (the server checks these on every request)
-const PERM_NAME = { mark: 'निशान लगा सकते हैं', ward: 'पूरा वार्ड देख सकते हैं', wardPdf: 'वार्ड की PDF', print: 'पर्ची प्रिंट' };
+const PERM_NAME = { mark: 'निशान लगा सकते हैं', lists: 'पूरा हुआ / आ रहे / नहीं की सूची', ward: 'पूरा वार्ड देख सकते हैं',
+  wardPdf: 'वार्ड की PDF', print: 'पर्ची प्रिंट' };
 const HEAVY = 500;   // searches in a day that get a yellow badge: a sign the list is being copied
 function permBoxes(u) {
   const box = el('div', 'perms');

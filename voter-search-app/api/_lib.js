@@ -124,9 +124,9 @@ async function whoIs(token) {
 }
 
 // What a person may do besides searching by name; the admin turns these on and off per person (admin can do all).
-//   mark: set status marks on slips · ward: list a whole ward without a name · wardPdf: whole-ward slip PDF
-//   print: the प्रिंट / PDF button on a slip
-const PERMS = ['mark', 'ward', 'wardPdf', 'print'];
+//   mark: set status marks on slips · lists: see every voter marked done / coming / absent, in a ward or all wards
+//   ward: list a whole ward without a name · wardPdf: whole-ward slip PDF · print: the प्रिंट / PDF button on a slip
+const PERMS = ['mark', 'lists', 'ward', 'wardPdf', 'print'];
 const DEFAULT_PERMS = ['print'];   // for new people, and people added before permissions existed
 const permsOf = (u) => (u.perms === undefined ? DEFAULT_PERMS.slice() : String(u.perms).split(',').filter((p) => PERMS.includes(p)));
 // today's date in India, for the per-person daily search count
