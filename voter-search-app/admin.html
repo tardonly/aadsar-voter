@@ -61,6 +61,24 @@
   .marks .done { border-color: #16a34a; color: #15803d; } .marks .coming { border-color: #ca8a04; color: #854d0e; }
   .marks .absent { border-color: #dc2626; color: #b91c1c; }
   #clearAll { margin-top: 10px; }
+  #restore { margin-top: 8px; }
+  /* progress per ward */
+  .prog { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .prog th { font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; padding: 0 4px 6px; }
+  .prog th:first-child, .prog td:first-child { text-align: left; }
+  .prog td { padding: 6px 4px 2px; text-align: right; font-variant-numeric: tabular-nums; border-top: 1px solid #eee; }
+  .prog tr.mrow td { border: 0; padding: 0 4px 6px; }
+  .prog tr.sum td { font-weight: 700; border-top: 1.5px solid var(--line); }
+  .prog .c-done { color: #15803d; } .prog .c-coming { color: #854d0e; } .prog .c-absent { color: #b91c1c; }
+  .meter { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: #e5e7eb; }
+  .meter i { display: block; } .meter .done { background: #16a34a; } .meter .coming { background: #facc15; } .meter .absent { background: #dc2626; }
+  .bar2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .bar2 button { padding: 4px 10px; font-size: 13px; }
+  .foot { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  /* what each person may do */
+  .perms { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 13.5px; }
+  .perms label { display: flex; align-items: center; gap: 5px; }
+  .perms input { width: 17px; height: 17px; margin: 0; }
   .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .actions button { padding: 6px 10px; font-size: 13px; }
   .empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
@@ -87,6 +105,15 @@
   <section id="panel" class="hidden">
     <div class="bar"><h1>एडमिन</h1>
       <span class="row"><a class="btn ghost" href="./" style="text-decoration:none">← खोज</a><button class="btn ghost" id="logout" type="button">लॉग आउट</button></span></div>
+
+    <div class="card">
+      <div class="bar2"><h2>वार्ड अनुसार प्रगति</h2><button class="btn ghost" id="reload" type="button">ताज़ा करें</button></div>
+      <table class="prog">
+        <thead><tr><th>वार्ड</th><th>कुल</th><th class="c-done">✓ पूरा</th><th class="c-coming">आ रहे</th><th class="c-absent">नहीं</th><th>बाकी</th></tr></thead>
+        <tbody id="prog"></tbody>
+      </table>
+      <div class="foot" id="progFoot"></div>
+    </div>
 
     <div class="card">
       <h2>नया व्यक्ति जोड़ें</h2>
@@ -127,6 +154,7 @@
         <button type="button" class="absent" data-s="absent"><b>0</b>उपलब्ध नहीं<small>हटाएं</small></button>
       </div>
       <button class="btn ghost full" id="clearAll" type="button">सभी निशान हटाएं</button>
+      <button class="btn ghost full hidden" id="restore" type="button"></button>
       <div class="msg" id="marksMsg"></div>
     </div>
   </section>
@@ -143,7 +171,7 @@ let token = appToken && appToken.startsWith('admin.') ? appToken : null;
 const MSG = {
   wrong: 'एडमिन पासवर्ड गलत है', too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   offline: 'इंटरनेट नहीं है', server: 'सर्वर में दिक्कत', name: 'नाम लिखें', not_found: 'यह व्यक्ति नहीं मिला',
-  phone: 'मोबाइल नंबर सही नहीं है — 10 अंकों का नंबर लिखें',
+  phone: 'मोबाइल नंबर सही नहीं है — 10 अंकों का नंबर लिखें', no_backup: 'वापस लाने के लिए कुछ नहीं है',
 };
 // 919876543210 → "+91 98765 43210"
 const showPhone = (p) => (/^91\d{10}$/.test(p) ? `+91 ${p.slice(2, 7)} ${p.slice(7)}` : p ? `+${p}` : '');
@@ -165,7 +193,7 @@ $('loginForm').addEventListener('submit', async (e) => {
   $('loginBtn').disabled = false;
   if (r.error) { adminPassword = ''; $('loginMsg').textContent = errText(r); return; }
   $('adminPw').value = '';
-  users = r.users; render(); showMarks(r.marks);
+  showList(r);
   $('login').classList.add('hidden'); $('panel').classList.remove('hidden');
 });
 $('logout').addEventListener('click', () => {
@@ -177,32 +205,66 @@ $('logout').addEventListener('click', () => {
   if (!token) return;
   const r = await api({ action: 'list' });
   if (r.error) { token = null; return; }
-  users = r.users; render(); showMarks(r.marks);
+  showList(r);
   $('login').classList.add('hidden'); $('panel').classList.remove('hidden');
 })();
 
 async function refresh() {
   const r = await api({ action: 'list' });
   if (r.error) { $('listMsg').textContent = errText(r); return; }
-  $('listMsg').textContent = ''; users = r.users; render(); showMarks(r.marks);
+  $('listMsg').textContent = ''; showList(r);
+}
+function showList(r) {
+  users = r.users; render(); showMarks(r);
+  $('progFoot').textContent = `एडमिन ने ${r.adminMarked || 0} पर्चियों पर निशान लगाए · हर मिनट अपने-आप ताज़ा होता है`;
+}
+$('reload').addEventListener('click', refresh);
+// polling day: keep the numbers fresh while the page is open
+setInterval(() => { if (!document.hidden && !$('panel').classList.contains('hidden')) refresh(); }, 60000);
+
+// ---------- progress per ward ----------
+function showProgress(wards) {
+  const body = $('prog'); body.innerHTML = '';
+  const sum = { ward: 'कुल', total: 0, done: 0, coming: 0, absent: 0 };
+  for (const w of wards) for (const k of ['total', 'done', 'coming', 'absent']) sum[k] += w[k];
+  for (const w of [...wards, sum]) {
+    const left = w.total - w.done - w.coming - w.absent;
+    const tr = el('tr', w === sum ? 'sum' : null);
+    tr.append(el('td', null, w === sum ? 'कुल' : `वार्ड ${w.ward}`), el('td', null, w.total),
+      el('td', 'c-done', w.done), el('td', 'c-coming', w.coming), el('td', 'c-absent', w.absent), el('td', null, left));
+    const bar = el('tr', 'mrow'), td = el('td'); td.colSpan = 6;
+    const m = el('div', 'meter');
+    for (const k of ['done', 'coming', 'absent']) { const i = el('i', k); i.style.width = `${(100 * w[k]) / (w.total || 1)}%`; m.append(i); }
+    td.append(m); bar.append(td);
+    body.append(tr, bar);
+  }
 }
 
 // ---------- status marks on the slips: how many of each, and clearing them ----------
 const MARK_NAME = { done: 'पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
 let marks = { done: 0, coming: 0, absent: 0 };
-function showMarks(m) {
-  if (m) marks = m;
+function showMarks(r) {
+  marks = r.marks;
+  showProgress(r.wards);
+  $('restore').classList.toggle('hidden', !r.backup);
+  if (r.backup) $('restore').textContent = `↺ ${fmt(r.backup.at)} को हटाए गए ${r.backup.n} निशान वापस लाएं`;
   document.querySelectorAll('.marks button').forEach((b) => { b.querySelector('b').textContent = marks[b.dataset.s]; b.disabled = !marks[b.dataset.s]; });
   $('clearAll').disabled = !(marks.done + marks.coming + marks.absent);
 }
 async function clearMarks(status) {
   const n = status === 'all' ? marks.done + marks.coming + marks.absent : marks[status];
   const what = status === 'all' ? 'सभी' : `"${MARK_NAME[status]}" के सभी`;
-  if (!confirm(`${what} ${n} निशान हटाएं? यह वापस नहीं होगा।`)) return;
+  if (!confirm(`${what} ${n} निशान हटाएं? गलती हो तो "वापस लाएं" से ये निशान लौट आएंगे (सिर्फ़ आखिरी बार हटाए गए)।`)) return;
   const r = await api({ action: 'clearMarks', status });
   if (r.error) { $('marksMsg').textContent = errText(r); return; }
-  $('marksMsg').textContent = ''; showMarks(r.marks);
+  $('marksMsg').textContent = ''; showMarks(r);
 }
+$('restore').addEventListener('click', async () => {
+  if (!confirm('आखिरी बार हटाए गए निशान वापस लाएं? उसके बाद लगे नए निशान भी बने रहेंगे।')) return;
+  const r = await api({ action: 'restoreMarks' });
+  if (r.error) { $('marksMsg').textContent = errText(r); return; }
+  $('marksMsg').textContent = ''; showMarks(r);
+});
 document.querySelectorAll('.marks button').forEach((b) => b.addEventListener('click', () => clearMarks(b.dataset.s)));
 $('clearAll').addEventListener('click', () => clearMarks('all'));
 
@@ -246,6 +308,26 @@ document.querySelectorAll('.filter button').forEach((b) => b.addEventListener('c
   render();
 }));
 
+// what each person may do besides searching by name (the server checks these on every request)
+const PERM_NAME = { mark: 'निशान लगा सकते हैं', ward: 'पूरा वार्ड देख सकते हैं', wardPdf: 'वार्ड की PDF', print: 'पर्ची प्रिंट' };
+const HEAVY = 500;   // searches in a day that get a yellow badge: a sign the list is being copied
+function permBoxes(u) {
+  const box = el('div', 'perms');
+  for (const [p, label] of Object.entries(PERM_NAME)) {
+    const l = el('label'), c = el('input');
+    c.type = 'checkbox'; c.checked = u.perms.includes(p);
+    c.addEventListener('change', async () => {
+      const want = [...box.querySelectorAll('input')].map((x, i) => x.checked && Object.keys(PERM_NAME)[i]).filter(Boolean);
+      box.querySelectorAll('input').forEach((x) => { x.disabled = true; });
+      const r = await api({ action: 'perms', id: u.id, perms: want });
+      box.querySelectorAll('input').forEach((x) => { x.disabled = false; });
+      if (r.error) { c.checked = !c.checked; $('listMsg').textContent = errText(r); return; }
+      u.perms = r.user.perms;
+    });
+    l.append(c, label); box.append(l);
+  }
+  return box;
+}
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function render() {
   const list = $('list'); list.innerHTML = '';
@@ -256,7 +338,9 @@ function render() {
     const left = el('div');
     const nm = el('div', 'name', u.name); nm.append(el('span', `badge ${u.retired ? 'off' : 'on'}`, u.retired ? 'बंद' : 'चालू'));
     if (u.kicks) nm.append(el('span', 'badge warn', `एक साथ दो फ़ोन: ${u.kicks} बार`));
+    if (u.searchesToday >= HEAVY) nm.append(el('span', 'badge warn', `आज ${u.searchesToday} खोज`));
     const info = el('div', 'info', `बनाया: ${fmt(u.created)} · आखिरी इस्तेमाल: ${fmt(u.lastSeen)}` + (u.retired ? ` · बंद किया: ${fmt(u.retiredAt)}` : ''));
+    const use = el('div', 'info', `आज ${u.searchesToday} खोज · ${u.marked} पर्चियों पर इनके निशान`);
     const sess = el('div', 'info', u.loggedIn
       ? `अभी लॉगिन: ${u.sessionDevice || '—'} · IP ${u.sessionIp || '—'} · ${fmt(u.sessionAt)} से`
       : 'अभी किसी फ़ोन पर लॉगिन नहीं');
@@ -271,7 +355,8 @@ function render() {
       refresh();
     });
     ph.append(edit);
-    left.append(nm, ph, info, sess);
+    left.append(nm, ph, info, sess, use);
+    if (!u.retired) left.append(permBoxes(u));
     const act = el('div', 'actions');
     if (u.loggedIn) {
       const out = el('button', 'btn ghost', 'लॉग आउट करें');

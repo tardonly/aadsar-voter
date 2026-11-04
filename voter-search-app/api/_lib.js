@@ -113,23 +113,44 @@ function route(fn) {
 // status: 'ok' | 'retired' | 'logged_out' (session ended by admin or a new password)
 //         | 'other_device' (this password has since been opened on another phone)
 async function whoIs(token) {
-  if (isAdminToken(token)) return { id: 'admin', name: 'एडमिन', admin: true, status: 'ok' };
+  if (isAdminToken(token)) return { id: 'admin', name: 'एडमिन', admin: true, status: 'ok', perms: PERMS.slice() };
   const t = parseToken(token);
   const user = t && t.id !== 'admin' ? await getUser(t.id) : null;
   if (!user) return null;
   user.status = user.retired === '1' ? 'retired' : !user.session ? 'logged_out' : user.session !== t.sid ? 'other_device' : 'ok';
   user.sid = t.sid;
+  user.perms = permsOf(user);
   return user;
 }
 
-// Status marks the admin puts on voters, kept in one Redis hash "marks": field "<ward>:<box>", value "<status>|<time>".
+// What a person may do besides searching by name; the admin turns these on and off per person (admin can do all).
+//   mark: set status marks on slips · ward: list a whole ward without a name · wardPdf: whole-ward slip PDF
+//   print: the प्रिंट / PDF button on a slip
+const PERMS = ['mark', 'ward', 'wardPdf', 'print'];
+const DEFAULT_PERMS = ['print'];   // for new people, and people added before permissions existed
+const permsOf = (u) => (u.perms === undefined ? DEFAULT_PERMS.slice() : String(u.perms).split(',').filter((p) => PERMS.includes(p)));
+// today's date in India, for the per-person daily search count
+const today = () => new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+
+// Status marks put on voters, kept in one Redis hash "marks": field "<ward>:<box>",
+// value "<status>|<time>|<who's id>|<who's name>" (older marks have only "<status>|<time>").
 const MARKS = ['done', 'coming', 'absent'];   // green: done · yellow: on the way · red: not available
 const markKey = (v) => `${parseInt(v.ward, 10)}:${parseInt(v.box, 10)}`;
+function parseMark(val) {
+  const [m = '', at = '', byId = '', by = ''] = val ? String(val).split('|') : [];
+  return { m, at, byId, by };
+}
 async function marksFor(keys) {
   if (!keys.length) return [];
   const vals = (await redis('HMGET', 'marks', ...keys)) || [];
-  return keys.map((k, i) => (vals[i] ? String(vals[i]).split('|')[0] : ''));
+  return keys.map((k, i) => parseMark(vals[i]));
+}
+async function allMarks() {   // "<ward>:<box>" → parsed mark, for every marked slip
+  const flat = (await redis('HGETALL', 'marks')) || [];
+  const out = {};
+  for (let i = 0; i < flat.length; i += 2) out[flat[i]] = parseMark(flat[i + 1]);
+  return out;
 }
 
-module.exports = { redis, MARKS, markKey, marksFor, dataKey, pwHash, newSession, makeToken, parseToken, sameText, isAdminPassword, adminToken, isAdminToken,
+module.exports = { redis, MARKS, markKey, parseMark, marksFor, allMarks, PERMS, DEFAULT_PERMS, permsOf, today, dataKey, pwHash, newSession, makeToken, parseToken, sameText, isAdminPassword, adminToken, isAdminToken,
   whoIs, newPassword, getUser, clientIp, deviceName, blocked, failed, send, route };

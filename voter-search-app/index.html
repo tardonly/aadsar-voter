@@ -60,6 +60,9 @@
   .row2 { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; }
   #reset { padding: 0 12px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--line); border-radius: 10px; background: #fff; color: var(--bad); }
   .row2 select { width: auto; }
+  #qMark { font-size: 15px; padding: 8px 10px; }
+  #bigBtn { font-weight: 700; color: var(--ink); }
+  #bigBtn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
   #count { font-size: 13px; color: var(--muted); margin-top: 6px; min-height: 18px; }
   #count.bad { color: var(--bad); }
   #wardPdf { margin-top: 6px; width: 100%; padding: 8px 10px; font-size: 15px; font-weight: 600; border: 1.5px solid var(--accent);
@@ -72,8 +75,14 @@
   /* voter slip, modelled on the printed slip */
   .slip { background: var(--card); border: 1.5px solid #222; margin: 0 0 12px; font-size: 15px; }
   .slip .head { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 8px; padding: 6px 8px 0; }
-  .slip .pp { justify-self: start; padding: 4px 10px; font-size: 13.5px; font-weight: 600; color: var(--accent);
+  .slip .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  .slip .tools button { padding: 4px 10px; font-size: 13.5px; font-weight: 600; color: var(--accent);
     background: #fff; border: 1.5px solid var(--line); border-radius: 8px; }
+  .slip .tools .fam.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* the other voters at the same house number, opened under a slip */
+  .family { margin: -4px 0 14px 10px; padding: 8px 0 0 10px; border-left: 3px solid var(--accent); }
+  .family .fh { font-size: 13.5px; font-weight: 600; color: var(--accent); margin: 0 0 8px; }
+  .family .slip:last-child { margin-bottom: 0; }
   .slip .meta { font-size: 12.5px; text-align: right; line-height: 1.5; white-space: nowrap; }
   .slip .meta span + span { margin-left: 12px; }
   .slip .idline { display: flex; align-items: center; gap: 10px; padding: 2px 8px 4px; }
@@ -92,6 +101,7 @@
   .slip .time { background: var(--pink); color: #fff; text-align: center; font-size: 13px; padding: 3px 4px; }
   /* status mark the admin sets: a coloured bar on top of the slip, seen by everyone */
   .slip .mark { display: none; padding: 4px 8px; font-size: 14px; font-weight: 700; color: #fff; }
+  .slip .mark small { font-weight: 400; font-size: 12px; margin-left: 6px; opacity: .9; }
   .slip[data-mark] .mark { display: block; }
   .slip[data-mark=done] { border-color: var(--done); } .slip[data-mark=done] .mark { background: var(--done); }
   .slip[data-mark=coming] { border-color: #ca8a04; } .slip[data-mark=coming] .mark { background: var(--coming); color: #422006; }
@@ -112,6 +122,10 @@
     #printArea { display: block; }
     #printArea img { display: block; }   /* sized in mm by oneSlip() */
   }
+  /* bigger text (अ+ button), remembered on this phone */
+  html.big .slip, html.big .family .fh, html.big .hint { zoom: 1.2; }
+  html.big .fields input, html.big .fields select { font-size: 20px; }
+  html.big #count { font-size: 15px; }
   #more { margin: 4px auto 0; display: block; width: auto; padding: 10px 22px; font-size: 16px; }
   /* "Powered by DigyAi" footer */
   .powered { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0 auto; padding: 8px 0 calc(10px + env(safe-area-inset-bottom)); width: fit-content;
@@ -141,7 +155,7 @@
 <section id="app" class="hidden">
   <header>
     <div class="titlebar"><b>मतदाता खोज · आडसर<span class="who" id="who"></span></b>
-      <span class="tb-actions"><a id="adminBtn" class="hidden" href="admin.html">एडमिन</a><button id="lockBtn" type="button">लॉग आउट</button></span></div>
+      <span class="tb-actions"><button id="bigBtn" type="button" aria-label="बड़े अक्षर" aria-pressed="false">अ+</button><a id="adminBtn" class="hidden" href="admin.html">एडमिन</a><button id="lockBtn" type="button">लॉग आउट</button></span></div>
     <div class="fields">
       <input id="qName" type="search" placeholder="नाम / Name / बॉक्स नं. / Voter ID" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="search">
       <div class="row2">
@@ -149,6 +163,13 @@
         <select id="qWard" aria-label="वार्ड"><option value="">सभी वार्ड</option></select>
         <button id="reset" class="hidden" type="button" aria-label="खोज साफ़ करें">✕ साफ़</button>
       </div>
+      <select id="qMark" class="hidden" aria-label="निशान से छाँटें">
+        <option value="">सभी मतदाता (निशान कोई भी)</option>
+        <option value="none">सिर्फ़ बिना निशान वाले</option>
+        <option value="done">सिर्फ़ ✓ पूरा हुआ</option>
+        <option value="coming">सिर्फ़ आ रहे हैं</option>
+        <option value="absent">सिर्फ़ उपलब्ध नहीं</option>
+      </select>
     </div>
     <button id="wardPdf" class="hidden" type="button"></button>
     <div id="count"></div>
@@ -188,6 +209,9 @@ const MSG = {
   too_many: 'बहुत बार गलत पासवर्ड — 15 मिनट बाद कोशिश करें',
   slow_down: 'बहुत तेज़ खोज — एक मिनट रुककर कोशिश करें',
   admin: 'यह सिर्फ़ एडमिन कर सकता है',
+  no_ward: 'पूरे वार्ड की सूची देखने की अनुमति नहीं है — नाम, पिता/पति का नाम या बॉक्स नंबर लिखें',
+  no_mark: 'आपको निशान लगाने की अनुमति नहीं है',
+  no_pdf: 'आपको पूरे वार्ड की PDF की अनुमति नहीं है',
   offline: 'इंटरनेट नहीं है — इंटरनेट चालू करें',
   server: 'सर्वर में दिक्कत — थोड़ी देर बाद कोशिश करें',
 };
@@ -206,12 +230,13 @@ function showLock(msg, info) {
 }
 function signOut(msg) {
   store.del('tok'); store.del('who');
-  $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = ''; $('count').textContent = '';
+  $('results').innerHTML = ''; $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; $('qMark').value = ''; $('count').textContent = '';
   showLock(msg);
 }
-let isAdmin = false;
-function showApp(name, admin) {
-  isAdmin = !!admin;
+let isAdmin = false, perms = [];
+const can = (p) => isAdmin || perms.includes(p);   // what the admin allows this person (the server checks too)
+function showApp(name, admin, allowed) {
+  isAdmin = !!admin; perms = allowed || [];
   $('who').textContent = name ? `उपयोगकर्ता: ${name}` : '';
   $('adminBtn').classList.toggle('hidden', !admin);
   $('lock').classList.add('hidden'); $('app').classList.remove('hidden');
@@ -230,7 +255,7 @@ $('lockForm').addEventListener('submit', async (e) => {
   const keep = $('remember').checked;
   store.set('tok', r.token, keep); store.set('who', r.name, keep);
   $('pw').value = '';
-  showApp(r.name, r.admin);
+  showApp(r.name, r.admin, r.perms);
 });
 $('lockBtn').addEventListener('click', () => {
   api('logout', { token: store.get('tok') });   // close the session on the server; no need to wait
@@ -238,35 +263,54 @@ $('lockBtn').addEventListener('click', () => {
 });
 
 // ---------- search ----------
-let seq = 0, shown = 0, total = 0, last = null;
+let seq = 0, shown = 0, total = 0, lastBox = 0;
 function hint() {
   $('results').innerHTML = '<div class="hint">नाम या पिता/पति का नाम हिंदी या English में लिखें।<br>' +
     'गलत स्पेलिंग भी चलेगी, जैसे <b>bhanvarlal</b>, <b>mangi lal</b>, <b>मांगीलाल</b>।<br>' +
-    'बॉक्स नंबर (जैसे <b>25</b>, वार्ड चुनकर) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।<br>' +
-    'सिर्फ़ वार्ड चुनें तो उस वार्ड के सभी मतदाता बॉक्स क्रम में दिखेंगे।</div>';
+    'बॉक्स नंबर (जैसे <b>25</b>, वार्ड चुनकर, या <b>3/25</b> = वार्ड 3 का बॉक्स 25) या Voter ID (जैसे <b>XHE1102649</b>) से भी खोज सकते हैं।' +
+    (can('ward') ? '<br>सिर्फ़ वार्ड चुनें तो उस वार्ड के सभी मतदाता बॉक्स क्रम में दिखेंगे।' : '') + '</div>';
 }
-async function search(offset = 0) {
-  const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value };
+const FILTER = { none: 'बिना निशान वाले', done: '✓ पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
+async function search(more = false) {
+  const q = { name: $('qName').value.trim(), rel: $('qRel').value.trim(), ward: $('qWard').value, mark: $('qMark').value };
+  const named = !!(q.name || q.rel);
   $('count').classList.remove('bad');
   wardButton();
-  $('reset').classList.toggle('hidden', !(q.name || q.rel || q.ward));
-  if (!q.name && !q.rel && !q.ward) { ++seq; hint();   // ++seq: a search still on its way is dropped
+  $('qMark').classList.toggle('hidden', !q.ward);
+  if (!q.ward) q.mark = '';
+  $('reset').classList.toggle('hidden', !(named || q.ward));
+  if (!named && !q.ward) { ++seq; hint();   // ++seq: a search still on its way is dropped
     $('count').textContent = ''; $('more').classList.add('hidden'); return; }
+  if (!named && !can('ward')) { ++seq; $('results').innerHTML = '';
+    $('count').textContent = MSG.no_ward; $('more').classList.add('hidden'); return; }
   const mine = ++seq;
-  if (!offset) $('count').textContent = 'खोज रहे हैं…';
-  const r = await api('search', { ...q, offset, token: store.get('tok') });
+  if (!more) $('count').textContent = 'खोज रहे हैं…';
+  // a whole ward pages on from the last box shown, so slips marked meanwhile don't shift the list
+  const r = await api('search', { ...q, offset: more ? shown : 0, after: more ? lastBox : 0, token: store.get('tok') });
   if (mine !== seq) return;                       // a newer search has started
   if (loggedOut(r)) return;
   if (r.error) { $('count').textContent = MSG[r.error] || MSG.server; $('count').classList.add('bad'); return; }
-  last = q; total = r.total;
-  if (!offset) { $('results').innerHTML = ''; shown = 0; }
+  if (r.perms) updatePerms(r.perms);
+  total = r.total;
+  if (!more) { $('results').innerHTML = ''; shown = 0; }
   const frag = document.createDocumentFragment();
   for (const v of r.results) frag.appendChild(slip(v));
   $('results').appendChild(frag);
-  shown = r.offset + r.results.length;
-  const found = q.name || q.rel ? `${total} मतदाता मिले` : `वार्ड ${q.ward} · सभी ${total} मतदाता, बॉक्स क्रम में`;
-  $('count').textContent = total ? found + (total > shown ? ` · ${shown} दिखाए` : '') : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
-  $('more').classList.toggle('hidden', !(shown < Math.min(total, r.limit || 250)));   // name searches page up to 250 results
+  shown += r.results.length;
+  if (r.results.length) lastBox = r.results[r.results.length - 1].box;
+  const which = q.mark ? `${FILTER[q.mark]} ` : '';
+  const found = named ? `${total} ${which}मतदाता मिले` : `वार्ड ${q.ward} · ${q.mark ? which : 'सभी '}${total} मतदाता, बॉक्स क्रम में`;
+  $('count').textContent = total ? found + (total > shown ? ` · ${shown} दिखाए` : '')
+    : q.mark ? `वार्ड ${q.ward} में ${which}कोई मतदाता नहीं` : 'कोई मतदाता नहीं मिला — स्पेलिंग बदलकर देखें';
+  $('more').classList.toggle('hidden', !r.more);
+}
+
+// the admin can change what this person may do at any time; the next answer from the server says so
+function updatePerms(p) {
+  if (isAdmin || p.join() === perms.join()) return;
+  perms = p;
+  wardButton();
+  if (shown) search();   // redraw the slips with the right buttons
 }
 
 const loggedOut = (r) => ['retired', 'login', 'logged_out', 'other_device'].includes(r.error) && (signOut(MSG[r.error]), true);
@@ -274,14 +318,23 @@ const loggedOut = (r) => ['retired', 'login', 'logged_out', 'other_device'].incl
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function kv(label, value) { const f = document.createDocumentFragment(); f.append(label, el('b', null, value)); return f; }
 
-function slip(r) {
+function slip(r, inFamily) {
   const [bhag, ...rest] = String(r.kendra || '').split('-');
   const d = el('div', 'slip');
   d.dataset.key = `${r.ward}:${r.box}`;
   const head = el('div', 'head');
-  const pp = el('button', 'pp', 'प्रिंट / PDF'); pp.type = 'button';
-  pp.onclick = () => oneSlip(r, navigator.standalone ? 'pdf' : 'print', pp);   // iPhone home-screen apps can't print: save the PDF
-  head.append(pp);
+  const tools = el('div', 'tools');
+  if (can('print')) {
+    const pp = el('button', 'pp', 'प्रिंट / PDF'); pp.type = 'button';
+    pp.onclick = () => oneSlip(r, navigator.standalone ? 'pdf' : 'print', pp);   // iPhone home-screen apps can't print: save the PDF
+    tools.append(pp);
+  }
+  if (!inFamily && String(r.house || '').trim()) {
+    const fb = el('button', 'fam', 'परिवार'); fb.type = 'button';
+    fb.onclick = () => toggleFamily(r, d, fb);
+    tools.append(fb);
+  }
+  head.append(tools);
   const meta = el('div', 'meta');
   const m1 = el('div'); m1.append(el('span', null, `पं.सं. ${PS}`), el('span', null, `जि.प. ${ZP}`));
   const m2 = el('div'); m2.append(el('span', null, `वार्ड नं. : ${r.ward}`), el('span', null, `भाग सं. ${bhag.trim()}`));
@@ -302,32 +355,62 @@ function slip(r) {
 
   const k = el('div', 'kendra'); k.append('मतदान केन्द्र : ', el('b', null, bhag.trim()), ` - ${rest.join('-').trim()}`);
   d.append(el('div', 'mark'), head, idl, l1, l2, k, el('div', 'time', POLL_TIME));
-  if (isAdmin) d.append(markButtons(r, d));
-  showMark(d, r.mark);
+  if (can('mark')) d.append(markButtons(r, d));
+  d.dataset.by = r.markBy || ''; d.dataset.at = r.markAt || '';
+  showMark(d, r.mark, r.markBy, r.markAt);
   return d;
 }
 
-// ---------- status marks (admin sets them; everyone sees the bar) ----------
+// everyone else at the same house number in the ward, opened under the slip
+async function toggleFamily(r, d, btn) {
+  const open = d.nextElementSibling && d.nextElementSibling.classList.contains('family') ? d.nextElementSibling : null;
+  if (open) { open.remove(); btn.classList.remove('on'); btn.textContent = 'परिवार'; return; }
+  btn.disabled = true; btn.textContent = 'ला रहे हैं…';
+  const res = await api('search', { family: `${r.ward}:${r.box}`, token: store.get('tok') });
+  btn.disabled = false; btn.textContent = 'परिवार';
+  if (loggedOut(res)) return;
+  if (res.error) { alert(MSG[res.error] || MSG.server); return; }
+  const others = res.results.filter((v) => v.box !== r.box);
+  const box = el('div', 'family');
+  box.append(el('div', 'fh', others.length ? `मकान नं. ${r.house} · वार्ड ${r.ward} · इसी मकान के और ${others.length} मतदाता`
+    : `मकान नं. ${r.house} पर और कोई मतदाता नहीं`));
+  for (const v of others) box.append(slip(v, true));
+  d.after(box);
+  btn.classList.add('on'); btn.textContent = 'परिवार छुपाएं';
+}
+
+// ---------- status marks (set by the admin and people allowed to; everyone sees the bar, who set it and when) ----------
 const MARKS = { done: '✓ पूरा हुआ', coming: 'आ रहे हैं', absent: 'उपलब्ध नहीं' };
-function showMark(d, m) {
+const when = (iso) => new Date(iso).toLocaleString('hi-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+function showMark(d, m, by, at) {
   if (MARKS[m]) d.dataset.mark = m; else delete d.dataset.mark;
-  d.querySelector('.mark').textContent = MARKS[m] || '';
+  const bar = d.querySelector('.mark');
+  bar.textContent = MARKS[m] || '';
+  if (MARKS[m] && (by || at)) bar.append(el('small', null, [by, at && when(at)].filter(Boolean).join(', ')));
   d.querySelectorAll('.acts .m').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
 }
 async function setMark(r, d, m) {
-  const before = d.dataset.mark || '';
-  const status = before === m ? '' : m;           // tapping the lit button again removes the mark
+  const before = [d.dataset.mark || '', d.dataset.by || '', d.dataset.at || ''];
+  const status = before[0] === m ? '' : m;        // tapping the lit button again removes the mark
   showMark(d, status);
   const res = await api('mark', { token: store.get('tok'), ward: r.ward, box: r.box, status });
-  if (res.error) { showMark(d, before); if (!loggedOut(res)) alert(MSG[res.error] || MSG.server); }
+  if (res.error) { showMark(d, ...before); if (!loggedOut(res)) alert(MSG[res.error] || MSG.server); return; }
+  d.dataset.by = res.by; d.dataset.at = res.at;
+  showMark(d, status, res.by, res.at);
 }
-// marks set by the admin on another phone reach this one without a new search
+// marks set on another phone reach this one without a new search
 async function refreshMarks() {
   const slips = [...document.querySelectorAll('.slip[data-key]')];
   if (!slips.length || document.hidden || !store.get('tok')) return;
   const r = await api('marks', { token: store.get('tok'), keys: slips.map((d) => d.dataset.key) });
   if (loggedOut(r) || !r.marks) return;
-  for (const d of slips) if (d.dataset.key in r.marks) showMark(d, r.marks[d.dataset.key]);
+  for (const d of slips) {
+    const k = r.marks[d.dataset.key];
+    if (!k) continue;
+    d.dataset.by = k.by; d.dataset.at = k.at;
+    showMark(d, k.m, k.by, k.at);
+  }
+  if (r.perms) updatePerms(r.perms);
 }
 setInterval(refreshMarks, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMarks(); });
@@ -380,7 +463,7 @@ async function oneSlip(r, how, btn) {
 // every slip of the chosen ward, 12 per A4 page
 function wardButton() {
   const w = $('qWard').value;
-  $('wardPdf').classList.toggle('hidden', !w || !isAdmin);   // whole-ward PDF: admin only
+  $('wardPdf').classList.toggle('hidden', !w || !can('wardPdf'));   // whole-ward PDF: admin, and people allowed it
   if (!$('wardPdf').disabled) $('wardPdf').textContent = `⬇ वार्ड ${w} की सभी पर्चियाँ (PDF)`;
 }
 $('wardPdf').addEventListener('click', async () => {
@@ -398,15 +481,24 @@ $('wardPdf').addEventListener('click', async () => {
 });
 
 let timer;
-for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => search(0), 300); });
-$('qWard').addEventListener('change', () => search(0));
-$('more').addEventListener('click', () => search(shown));
-// one tap empties both names and the ward, back to the start
+for (const id of ['qName', 'qRel']) $(id).addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => search(), 300); });
+$('qWard').addEventListener('change', () => search());
+$('qMark').addEventListener('change', () => search());
+$('more').addEventListener('click', () => search(true));
+// one tap empties both names, the ward and the mark filter, back to the start
 $('reset').addEventListener('click', () => {
   clearTimeout(timer);
-  $('qName').value = ''; $('qRel').value = ''; $('qWard').value = '';
-  search(0); scrollTo(0, 0);
+  $('qName').value = ''; $('qRel').value = ''; $('qWard').value = ''; $('qMark').value = '';
+  search(); scrollTo(0, 0);
 });
+// bigger text, remembered on this phone
+function setBig(on) {
+  document.documentElement.classList.toggle('big', on);
+  $('bigBtn').classList.toggle('on', on); $('bigBtn').setAttribute('aria-pressed', on);
+  store.set('big', on ? '1' : '', true);
+}
+setBig(store.get('big') === '1');
+$('bigBtn').addEventListener('click', () => setBig(!document.documentElement.classList.contains('big')));
 
 // ---------- open straight into search if this phone is remembered, after checking the password is still active ----------
 (async () => {
@@ -416,7 +508,7 @@ $('reset').addEventListener('click', () => {
   const r = await api('check', { token: tok });
   if (r.error) return showLock(MSG[r.error] || MSG.server);
   if (!r.active) return signOut(MSG[r.reason] || MSG.login);
-  showApp(r.name, r.admin);
+  showApp(r.name, r.admin, r.perms);
 })();
 </script>
 </body>

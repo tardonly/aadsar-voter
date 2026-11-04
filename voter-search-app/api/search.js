@@ -1,11 +1,21 @@
-// POST {token, name, rel, ward, offset} → {total, offset, limit, results: [...up to 10 voters, each with its status mark], wards}
-// A ward with no name lists the whole ward in box order; a name search pages through its best 250 matches.
+// POST {token, name, rel, ward, mark, offset, after} → {total, more, results: [...up to 10 voters, each with its status mark], wards, perms}
+//   POST {token, family: "<ward>:<box>"} → {total, results: everyone at that voter's house number in that ward}
+// A ward with no name lists the whole ward in box order (only for people allowed 'ward'); it pages with after = the last
+// box shown, so marking slips while going through a filtered list doesn't skip anyone. A name search pages through its
+// best 250 matches. mark filters by status mark: 'none' (no mark yet) | 'done' | 'coming' | 'absent'.
 // Every search checks that the password behind the token is still active and that this phone holds its newest
 // session, so retiring or logging in on another phone takes effect at once.
-const { redis, whoIs, markKey, marksFor, send, route } = require('./_lib.js');
-const { load, search, publicFields } = require('./_search.js');
+const { redis, whoIs, MARKS, markKey, marksFor, allMarks, today, send, route } = require('./_lib.js');
+const { load, search, family, publicFields } = require('./_search.js');
 
-const PAGE = 10, MAX_NAMED = 250, PER_MINUTE = 120;
+const PAGE = 10, MAX_NAMED = 250, MAX_FAMILY = 60, PER_MINUTE = 120;
+
+async function withMarks(list) {
+  const results = list.map(publicFields);
+  const marks = await marksFor(results.map(markKey));
+  results.forEach((r, i) => { r.mark = marks[i].m; r.markBy = marks[i].by; r.markAt = marks[i].at; });
+  return results;
+}
 
 module.exports = route(async (req, res, b) => {
   const user = await whoIs(b.token);
@@ -16,13 +26,36 @@ module.exports = route(async (req, res, b) => {
   const n = await redis('INCR', minuteKey);
   if (n === 1) await redis('EXPIRE', minuteKey, 120);
   if (n > PER_MINUTE) return send(res, 429, { error: 'slow_down' });
+  if (!user.admin) {   // searches per person per day, shown on the admin page
+    const dayKey = `searches:${user.id}:${today()}`;
+    if (await redis('INCR', dayKey) === 1) await redis('EXPIRE', dayKey, 3 * 86400);
+  }
 
-  const hits = search(b);
+  if (b.family) {
+    const results = await withMarks(family(b.family).slice(0, MAX_FAMILY));
+    return send(res, 200, { total: results.length, results, perms: user.perms });
+  }
+
   const named = String(b.name || '').trim() || String(b.rel || '').trim();
-  const limit = named ? MAX_NAMED : hits.length;
-  const offset = Math.min(Math.max(0, parseInt(b.offset, 10) || 0), Math.max(0, limit - 1));
-  const results = hits.slice(offset, Math.min(offset + PAGE, limit)).map(publicFields);
-  const marks = await marksFor(results.map(markKey));
-  results.forEach((r, i) => { r.mark = marks[i]; });
-  send(res, 200, { total: hits.length, offset, page: PAGE, limit, results, wards: load().wards });
+  if (!named && !user.perms.includes('ward')) return send(res, 403, { error: 'no_ward' });
+  let hits = search(b);
+  const filter = String(b.mark || '');
+  if (filter === 'none' || MARKS.includes(filter)) {
+    const marks = await allMarks();
+    hits = hits.filter((r) => ((marks[markKey(r)] || {}).m || 'none') === filter);
+  }
+  const total = hits.length;
+  let page, more;
+  if (named) {
+    const limit = Math.min(total, MAX_NAMED);
+    const offset = Math.min(Math.max(0, parseInt(b.offset, 10) || 0), limit);
+    page = hits.slice(offset, Math.min(offset + PAGE, limit));
+    more = offset + PAGE < limit;
+  } else {
+    const after = parseInt(b.after, 10) || 0;
+    const rest = after ? hits.filter((r) => r.box > after) : hits;
+    page = rest.slice(0, PAGE);
+    more = rest.length > PAGE;
+  }
+  send(res, 200, { total, more, results: await withMarks(page), wards: load().wards, perms: user.perms });
 });

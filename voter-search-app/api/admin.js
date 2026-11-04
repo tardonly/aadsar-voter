@@ -1,15 +1,22 @@
 // POST {adminPassword | token, action, ...}   (token = the admin token from logging into the app with the admin password)
-//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks}]}
+//   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks,
+//                                    perms, searchesToday, marked}], adminMarked}
 //   action "add",   name, phone  → {user, password}   (password is shown to the admin once; only its hash is stored)
 //   action "reset", id           → {user, password}   (new password for the same person; the old one stops working)
 //   action "retire", id          → {ok}               (password stops working; the phone is logged out at once)
 //   action "logout", id          → {ok}               (ends the person's current session; they can log in again)
 //   action "phone", id, phone    → {user}             (add or change the person's WhatsApp number; "" removes it)
-//   action "clearMarks", status → {marks}            (removes every 'done' | 'coming' | 'absent' mark, or 'all' of them)
-// "list" and "clearMarks" also return marks: {done, coming, absent}, how many slips carry each status mark.
+//   action "perms", id, perms    → {user}             (what the person may do: any of 'mark', 'ward', 'wardPdf', 'print')
+//   action "clearMarks", status → {marks}            (removes every 'done' | 'coming' | 'absent' mark, or 'all' of them;
+//                                                      the removed marks are kept as a backup first)
+//   action "restoreMarks"       → {marks}            (puts back the marks removed by the last clearMarks)
+// "list", "clearMarks" and "restoreMarks" also return marks: {done, coming, absent} (how many slips carry each mark),
+// wards: [{ward, total, done, coming, absent}] (progress per ward) and backup: {n, at} | null.
+// marked / adminMarked: how many slips carry a mark that person (or the admin) set.
 // Phone numbers are stored as digits with the country code, e.g. 919876543210, ready for a wa.me link.
 const crypto = require('crypto');
-const { redis, MARKS, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
+const { load } = require('./_search.js');
+const { redis, MARKS, PERMS, permsOf, allMarks, today, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
 
 // "98765 43210", "098765-43210", "+91 98765 43210" → "919876543210"; '' when empty; null when not a valid number
 function normPhone(s) {
@@ -22,14 +29,26 @@ function normPhone(s) {
   return null;
 }
 
-// status → the slips ("<ward>:<box>") carrying that mark
-async function marksByStatus() {
-  const flat = (await redis('HGETALL', 'marks')) || [];
-  const by = Object.fromEntries(MARKS.map((m) => [m, []]));
-  for (let i = 0; i < flat.length; i += 2) { const m = String(flat[i + 1]).split('|')[0]; if (by[m]) by[m].push(flat[i]); }
-  return by;
+// how many slips carry each mark, overall and per ward, and the backup the last "clear" left
+async function markSummary(all) {
+  all ||= await allMarks();
+  const zero = () => Object.fromEntries(MARKS.map((m) => [m, 0]));
+  const marks = zero(), perWard = {};
+  for (const r of load().rows) {
+    perWard[r.ward] ||= { ward: r.ward, total: 0, ...zero() };
+    perWard[r.ward].total++;
+  }
+  for (const [key, { m }] of Object.entries(all)) {
+    if (!MARKS.includes(m)) continue;
+    marks[m]++;
+    const w = perWard[key.split(':')[0]];
+    if (w) w[m]++;
+  }
+  const bk = await redis('GET', 'marks:backup');
+  let backup = null;
+  try { if (bk) { const j = JSON.parse(bk); backup = { n: j.flat.length / 2, at: j.at }; } } catch (e) { /* ignore a broken backup */ }
+  return { marks, wards: Object.values(perWard).sort((a, b) => a.ward - b.ward), backup };
 }
-const counts = (by) => Object.fromEntries(MARKS.map((m) => [m, by[m].length]));
 
 async function freshPassword() {
   for (;;) {
@@ -49,8 +68,13 @@ module.exports = route(async (req, res, b) => {
 
   if (b.action === 'list') {
     const ids = (await redis('SMEMBERS', 'users')) || [];
+    const all = await allMarks(), marked = {};
+    for (const { byId } of Object.values(all)) if (byId) marked[byId] = (marked[byId] || 0) + 1;
+    const day = today();
+    const searches = await Promise.all(ids.map((id) => redis('GET', `searches:${id}:${day}`)));
     const users = (await Promise.all(ids.map(getUser))).filter(Boolean)
       .map((u) => ({
+        perms: permsOf(u), searchesToday: Number(searches[ids.indexOf(u.id)] || 0), marked: marked[u.id] || 0,
         id: u.id, name: u.name, phone: u.phone || '', created: u.created, lastSeen: u.lastSeen || null,
         retired: u.retired === '1', retiredAt: u.retiredAt || null,
         loggedIn: !!u.session && u.retired !== '1',
@@ -58,15 +82,29 @@ module.exports = route(async (req, res, b) => {
         logins: Number(u.logins || 0), kicks: Number(u.kicks || 0),
       }))
       .sort((x, y) => (x.created < y.created ? 1 : -1));
-    return send(res, 200, { users, marks: counts(await marksByStatus()) });
+    return send(res, 200, { users, adminMarked: marked.admin || 0, ...(await markSummary(all)) });
   }
 
   if (b.action === 'clearMarks') {
     if (b.status !== 'all' && !MARKS.includes(b.status)) return send(res, 400, { error: 'status' });
-    const by = await marksByStatus();
-    const keys = b.status === 'all' ? MARKS.flatMap((m) => by[m]) : by[b.status];
-    for (let i = 0; i < keys.length; i += 500) await redis('HDEL', 'marks', ...keys.slice(i, i + 500));
-    return send(res, 200, { marks: counts(await marksByStatus()) });
+    const flat = (await redis('HGETALL', 'marks')) || [];
+    const gone = [];
+    for (let i = 0; i < flat.length; i += 2) if (b.status === 'all' || String(flat[i + 1]).split('|')[0] === b.status) gone.push(flat[i], flat[i + 1]);
+    if (gone.length) {
+      await redis('SET', 'marks:backup', JSON.stringify({ at: now, flat: gone }));   // only the last clear can be undone
+      const keys = gone.filter((x, i) => i % 2 === 0);
+      for (let i = 0; i < keys.length; i += 500) await redis('HDEL', 'marks', ...keys.slice(i, i + 500));
+    }
+    return send(res, 200, await markSummary());
+  }
+
+  if (b.action === 'restoreMarks') {
+    const bk = await redis('GET', 'marks:backup');
+    if (!bk) return send(res, 404, { error: 'no_backup' });
+    const { flat } = JSON.parse(bk);
+    for (let i = 0; i < flat.length; i += 1000) await redis('HSET', 'marks', ...flat.slice(i, i + 1000));
+    await redis('DEL', 'marks:backup');
+    return send(res, 200, await markSummary());
   }
 
   if (b.action === 'add') {
@@ -91,6 +129,12 @@ module.exports = route(async (req, res, b) => {
     await redis('HSET', `user:${user.id}`, 'hash', hash, 'retired', '0', 'session', '');
     await redis('SET', `pw:${hash}`, user.id);
     return send(res, 200, { user: { id: user.id, name: user.name, phone: user.phone || '' }, password });
+  }
+
+  if (b.action === 'perms') {
+    const perms = PERMS.filter((p) => Array.isArray(b.perms) && b.perms.includes(p));
+    await redis('HSET', `user:${user.id}`, 'perms', perms.join(','));
+    return send(res, 200, { user: { id: user.id, name: user.name, perms } });
   }
 
   if (b.action === 'phone') {
