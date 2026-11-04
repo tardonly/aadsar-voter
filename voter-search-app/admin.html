@@ -47,6 +47,7 @@
   .newpw { margin-top: 12px; padding: 14px; border-radius: 10px; background: #eff6ff; border: 1px solid #bfdbfe; }
   .newpw .pw { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 24px; font-weight: 700; letter-spacing: 1px; margin: 6px 0 10px; user-select: all; word-break: break-all; }
   .newpw .note { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .newpw .permsFor { font-size: 14px; font-weight: 600; margin-top: 12px; padding-top: 10px; border-top: 1px solid #bfdbfe; }
   .filter { display: flex; gap: 6px; margin-bottom: 10px; }
   .filter button { padding: 5px 12px; font-size: 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; }
   .filter button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
@@ -135,6 +136,8 @@
           <button class="btn ghost" id="sharePw" type="button">WhatsApp पर भेजें</button>
         </div>
         <div class="note">यह पासवर्ड सिर्फ़ अभी दिखेगा। भूल जाएं तो "नया पासवर्ड" से दूसरा बनाएं।</div>
+        <div class="permsFor">इन्हें क्या करने दें:</div>
+        <div id="newPwPerms"></div>
       </div>
     </div>
 
@@ -304,9 +307,10 @@ document.querySelectorAll('.marks button').forEach((b) => b.addEventListener('cl
 $('clearAll').addEventListener('click', () => clearMarks('all'));
 
 let shareTo = '';   // phone number the WhatsApp button sends to ('' = let WhatsApp ask for a contact)
-function showPassword(name, pw, phone) {
-  shareTo = phone || '';
-  $('newPwFor').textContent = `${name} का पासवर्ड:`;
+function showPassword(u, pw) {
+  shareTo = u.phone || '';
+  $('newPwFor').textContent = `${u.name} का पासवर्ड:`;
+  $('newPwPerms').replaceChildren(permBoxes(u));   // set what they may do right here, before sending the password
   $('newPwText').textContent = pw;
   $('sharePw').textContent = shareTo ? `WhatsApp पर भेजें (${showPhone(shareTo)})` : 'WhatsApp पर भेजें';
   $('sharePw').classList.toggle('wa', !!shareTo);
@@ -333,7 +337,7 @@ $('addForm').addEventListener('submit', async (e) => {
   $('addBtn').disabled = false;
   if (r.error) { $('addMsg').textContent = errText(r); return; }
   $('newName').value = ''; $('newPhone').value = '';
-  showPassword(r.user.name, r.password, r.user.phone);
+  showPassword(r.user, r.password);
   refresh();
 });
 
@@ -349,6 +353,7 @@ const PERM_NAME = { mark: 'निशान लगा सकते हैं', li
 const HEAVY = 500;   // searches in a day that get a yellow badge: a sign the list is being copied
 function permBoxes(u) {
   const box = el('div', 'perms');
+  box.dataset.id = u.id;
   for (const [p, label] of Object.entries(PERM_NAME)) {
     const l = el('label'), c = el('input');
     c.type = 'checkbox'; c.checked = u.perms.includes(p);
@@ -358,7 +363,11 @@ function permBoxes(u) {
       const r = await api({ action: 'perms', id: u.id, perms: want });
       box.querySelectorAll('input').forEach((x) => { x.disabled = false; });
       if (r.error) { c.checked = !c.checked; $('listMsg').textContent = errText(r); return; }
-      u.perms = r.user.perms;
+      // the same person's boxes in the list and in the new-password card stay alike
+      const p = r.user.perms, mine = users.find((x) => x.id === u.id);
+      u.perms = p; if (mine) mine.perms = p;
+      document.querySelectorAll(`.perms[data-id="${u.id}"]`).forEach((b) =>
+        b.querySelectorAll('input').forEach((x, i) => { x.checked = p.includes(Object.keys(PERM_NAME)[i]); }));
     });
     l.append(c, label); box.append(l);
   }
@@ -409,7 +418,7 @@ function render() {
       if (!confirm(`${u.name} के लिए नया पासवर्ड बनाएं? पुराना पासवर्ड बंद हो जाएगा।`)) return;
       const r = await api({ action: 'reset', id: u.id });
       if (r.error) { $('listMsg').textContent = errText(r); return; }
-      showPassword(u.name, r.password, r.user.phone); refresh();
+      showPassword(r.user, r.password); refresh();
     });
     act.append(reset);
     if (!u.retired) {

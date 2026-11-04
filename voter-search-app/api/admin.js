@@ -1,7 +1,8 @@
 // POST {adminPassword | token, action, ...}   (token = the admin token from logging into the app with the admin password)
 //   action "list"                → {users: [{id, name, phone, created, lastSeen, retired, loggedIn, session*, logins, kicks,
 //                                    perms, searchesToday, marked}], adminMarked}
-//   action "add",   name, phone  → {user, password}   (password is shown to the admin once; only its hash is stored)
+//   action "add",   name, phone  → {user, password}   (password is shown to the admin once; only its hash is stored;
+//                                                      user.perms are the starting permissions)
 //   action "reset", id           → {user, password}   (new password for the same person; the old one stops working)
 //   action "retire", id          → {ok}               (password stops working; the phone is logged out at once)
 //   action "logout", id          → {ok}               (ends the person's current session; they can log in again)
@@ -16,7 +17,7 @@
 // Phone numbers are stored as digits with the country code, e.g. 919876543210, ready for a wa.me link.
 const crypto = require('crypto');
 const { load } = require('./_search.js');
-const { redis, MARKS, PERMS, permsOf, allMarks, today, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
+const { redis, MARKS, PERMS, DEFAULT_PERMS, permsOf, allMarks, today, pwHash, isAdminPassword, isAdminToken, newPassword, getUser, blocked, failed, send, route } = require('./_lib.js');
 
 // "98765 43210", "098765-43210", "+91 98765 43210" → "919876543210"; '' when empty; null when not a valid number
 function normPhone(s) {
@@ -117,7 +118,7 @@ module.exports = route(async (req, res, b) => {
     await redis('HSET', `user:${id}`, 'name', name, 'phone', phone, 'created', now, 'retired', '0', 'hash', hash);
     await redis('SET', `pw:${hash}`, id);
     await redis('SADD', 'users', id);
-    return send(res, 200, { user: { id, name, phone, created: now, retired: false }, password });
+    return send(res, 200, { user: { id, name, phone, created: now, retired: false, perms: DEFAULT_PERMS }, password });
   }
 
   const user = b.id ? await getUser(String(b.id)) : null;
@@ -128,7 +129,7 @@ module.exports = route(async (req, res, b) => {
     if (user.hash) await redis('DEL', `pw:${user.hash}`);
     await redis('HSET', `user:${user.id}`, 'hash', hash, 'retired', '0', 'session', '');
     await redis('SET', `pw:${hash}`, user.id);
-    return send(res, 200, { user: { id: user.id, name: user.name, phone: user.phone || '' }, password });
+    return send(res, 200, { user: { id: user.id, name: user.name, phone: user.phone || '', perms: permsOf(user) }, password });
   }
 
   if (b.action === 'perms') {
