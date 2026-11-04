@@ -9,6 +9,8 @@ let cache = null;
 function load() {
   if (cache) return cache;
   const file = [path.join(__dirname, '_voters.enc'), path.join(process.cwd(), 'api', '_voters.enc')].find((p) => fs.existsSync(p));
+  // Vercel only ships the file with routes listed under "functions" in vercel.json
+  if (!file) throw new Error('api/_voters.enc missing from this route: add it to includeFiles in vercel.json');
   const enc = JSON.parse(fs.readFileSync(file, 'utf8'));
   const d = crypto.createDecipheriv('aes-256-gcm', Buffer.from(dataKey(), 'base64'), Buffer.from(enc.iv, 'base64'));
   d.setAuthTag(Buffer.from(enc.tag, 'base64'));

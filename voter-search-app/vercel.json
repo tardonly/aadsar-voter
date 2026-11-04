@@ -3,7 +3,8 @@
   "functions": {
     "api/search.js": { "includeFiles": "api/_voters.enc" },
     "api/ward.js": { "includeFiles": "api/_voters.enc" },
-    "api/mark.js": { "includeFiles": "api/_voters.enc" }
+    "api/mark.js": { "includeFiles": "api/_voters.enc" },
+    "api/admin.js": { "includeFiles": "api/_voters.enc" }
   },
   "headers": [
     {
